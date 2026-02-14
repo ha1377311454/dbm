@@ -1,0 +1,29 @@
+{
+  "name": "dbm-web",
+  "version": "1.0.0",
+  "description": "DBM Database Manager Web Interface",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:check": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.0",
+    "axios": "^1.6.0",
+    "echarts": "^5.5.0",
+    "element-plus": "^2.5.0",
+    "monaco-editor": "^0.45.0",
+    "pinia": "^2.1.0",
+    "sql-formatter": "^15.7.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vue-tsc": "^1.8.0"
+  }
+}

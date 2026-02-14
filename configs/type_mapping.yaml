@@ -1,0 +1,431 @@
+# 类型映射配置
+# 用于跨数据库 SQL 导出时的类型转换
+
+type_mapping:
+  # MySQL → PostgreSQL
+  mysql_to_postgresql:
+    # 整数类型
+    TINYINT:
+      target: "SMALLINT"
+      safe_fallback: "INTEGER"
+      precision_loss: true
+    SMALLINT:
+      target: "SMALLINT"
+      precision_loss: false
+    MEDIUMINT:
+      target: "INTEGER"
+      safe_fallback: "BIGINT"
+      precision_loss: false
+    INT:
+      target: "INTEGER"
+      precision_loss: false
+    BIGINT:
+      target: "BIGINT"
+      precision_loss: false
+
+    # 无符号整数
+    TINYINT_UNSIGNED:
+      target: "INTEGER"
+      safe_fallback: "BIGINT"
+      precision_loss: true
+    SMALLINT_UNSIGNED:
+      target: "INTEGER"
+      safe_fallback: "BIGINT"
+      precision_loss: true
+    MEDIUMINT_UNSIGNED:
+      target: "BIGINT"
+      precision_loss: true
+    INT_UNSIGNED:
+      target: "BIGINT"
+      precision_loss: true
+    BIGINT_UNSIGNED:
+      target: "NUMERIC(20)"
+      safe_fallback: "BIGINT"
+      precision_loss: true
+
+    # 浮点类型
+    FLOAT:
+      target: "REAL"
+      precision_loss: true
+    DOUBLE:
+      target: "DOUBLE PRECISION"
+      precision_loss: false
+    DECIMAL:
+      target: "NUMERIC"
+      precision_loss: false
+
+    # 字符串类型
+    CHAR:
+      target: "CHAR"
+      precision_loss: false
+    VARCHAR:
+      target: "VARCHAR"
+      precision_loss: false
+    TINYTEXT:
+      target: "TEXT"
+      precision_loss: false
+    TEXT:
+      target: "TEXT"
+      precision_loss: false
+    MEDIUMTEXT:
+      target: "TEXT"
+      precision_loss: false
+    LONGTEXT:
+      target: "TEXT"
+      precision_loss: false
+
+    # 二进制类型
+    BINARY:
+      target: "BYTEA"
+      precision_loss: false
+    VARBINARY:
+      target: "BYTEA"
+      precision_loss: false
+    TINYBLOB:
+      target: "BYTEA"
+      precision_loss: false
+    BLOB:
+      target: "BYTEA"
+      precision_loss: false
+    MEDIUMBLOB:
+      target: "BYTEA"
+      precision_loss: false
+    LONGBLOB:
+      target: "BYTEA"
+      precision_loss: false
+
+    # 日期时间类型
+    DATE:
+      target: "DATE"
+      precision_loss: false
+    TIME:
+      target: "TIME"
+      precision_loss: false
+    DATETIME:
+      target: "TIMESTAMP"
+      precision_loss: false
+    TIMESTAMP:
+      target: "TIMESTAMP"
+      precision_loss: false
+    YEAR:
+      target: "INTEGER"
+      precision_loss: true
+
+    # 特殊类型
+    ENUM:
+      target: "TEXT"
+      safe_fallback: "VARCHAR(255)"
+      requires_user: true
+      user_options:
+        - label: "转换为 TEXT（推荐）"
+          value: "TEXT"
+        - label: "转换为 VARCHAR(255)"
+          value: "VARCHAR(255)"
+        - label: "转换为 CHECK 约束"
+          value: "CHECK_CONSTRAINT"
+      note: "PostgreSQL 不支持 ENUM，需要选择替代类型"
+    SET:
+      target: "TEXT"
+      safe_fallback: "VARCHAR(255)"
+      requires_user: true
+      user_options:
+        - label: "转换为 TEXT（推荐）"
+          value: "TEXT"
+        - label: "转换为 VARCHAR(255)"
+          value: "VARCHAR(255)"
+      note: "PostgreSQL 不支持 SET"
+    BIT:
+      target: "BIT"
+      safe_fallback: "INTEGER"
+      precision_loss: true
+    BOOLEAN:
+      target: "BOOLEAN"
+      precision_loss: false
+
+    # 约束和关键字
+    AUTO_INCREMENT:
+      target: "SERIAL"
+      precision_loss: false
+    UNSIGNED:
+      target: "CHECK (column >= 0)"
+      note: "通过 CHECK 约束模拟无符号"
+
+  # MySQL → SQLite
+  mysql_to_sqlite:
+    TINYINT:
+      target: "INTEGER"
+      precision_loss: true
+    SMALLINT:
+      target: "INTEGER"
+      precision_loss: true
+    MEDIUMINT:
+      target: "INTEGER"
+      precision_loss: true
+    INT:
+      target: "INTEGER"
+      precision_loss: false
+    BIGINT:
+      target: "INTEGER"
+      precision_loss: true
+
+    FLOAT:
+      target: "REAL"
+      precision_loss: true
+    DOUBLE:
+      target: "REAL"
+      precision_loss: true
+    DECIMAL:
+      target: "REAL"
+      precision_loss: true
+
+    CHAR:
+      target: "TEXT"
+      precision_loss: true
+    VARCHAR:
+      target: "TEXT"
+      precision_loss: true
+    TINYTEXT:
+      target: "TEXT"
+      precision_loss: false
+    TEXT:
+      target: "TEXT"
+      precision_loss: false
+    MEDIUMTEXT:
+      target: "TEXT"
+      precision_loss: false
+    LONGTEXT:
+      target: "TEXT"
+      precision_loss: false
+
+    BINARY:
+      target: "BLOB"
+      precision_loss: false
+    VARBINARY:
+      target: "BLOB"
+      precision_loss: false
+    TINYBLOB:
+      target: "BLOB"
+      precision_loss: false
+    BLOB:
+      target: "BLOB"
+      precision_loss: false
+    MEDIUMBLOB:
+      target: "BLOB"
+      precision_loss: false
+    LONGBLOB:
+      target: "BLOB"
+      precision_loss: false
+
+    DATE:
+      target: "TEXT"
+      safe_fallback: "TEXT"
+      note: "SQLite 没有原生 DATE 类型，存储为 TEXT"
+    TIME:
+      target: "TEXT"
+      safe_fallback: "TEXT"
+      note: "SQLite 没有原生 TIME 类型，存储为 TEXT"
+    DATETIME:
+      target: "TEXT"
+      safe_fallback: "TEXT"
+      note: "SQLite 没有原生 DATETIME 类型，存储为 TEXT"
+    TIMESTAMP:
+      target: "TEXT"
+      safe_fallback: "TEXT"
+      note: "SQLite 没有原生 TIMESTAMP 类型，存储为 TEXT"
+    YEAR:
+      target: "INTEGER"
+      precision_loss: true
+
+    ENUM:
+      target: "TEXT"
+      precision_loss: false
+      note: "SQLite 不支持 ENUM"
+    SET:
+      target: "TEXT"
+      precision_loss: false
+      note: "SQLite 不支持 SET"
+    BIT:
+      target: "INTEGER"
+      precision_loss: true
+    BOOLEAN:
+      target: "INTEGER"
+      precision_loss: false
+
+    AUTO_INCREMENT:
+      target: "AUTOINCREMENT"
+      precision_loss: false
+    UNSIGNED:
+      target: ""
+      note: "SQLite 不支持无符号，忽略此属性"
+
+  # PostgreSQL → MySQL
+  postgresql_to_mysql:
+    SMALLINT:
+      target: "TINYINT"
+      safe_fallback: "SMALLINT"
+      precision_loss: true
+    INTEGER:
+      target: "INT"
+      precision_loss: false
+    BIGINT:
+      target: "BIGINT"
+      precision_loss: false
+    SERIAL:
+      target: "INT AUTO_INCREMENT"
+      precision_loss: false
+    BIGSERIAL:
+      target: "BIGINT AUTO_INCREMENT"
+      precision_loss: false
+
+    REAL:
+      target: "FLOAT"
+      precision_loss: true
+    DOUBLE_PRECISION:
+      target: "DOUBLE"
+      precision_loss: false
+    NUMERIC:
+      target: "DECIMAL"
+      precision_loss: false
+
+    CHAR:
+      target: "CHAR"
+      precision_loss: false
+    VARCHAR:
+      target: "VARCHAR"
+      precision_loss: false
+    TEXT:
+      target: "TEXT"
+      precision_loss: false
+
+    BYTEA:
+      target: "BLOB"
+      precision_loss: false
+
+    DATE:
+      target: "DATE"
+      precision_loss: false
+    TIME:
+      target: "TIME"
+      precision_loss: false
+    TIMESTAMP:
+      target: "DATETIME"
+      precision_loss: false
+    INTERVAL:
+      target: "VARCHAR(50)"
+      precision_loss: true
+
+    BOOLEAN:
+      target: "TINYINT(1)"
+      precision_loss: false
+    BIT:
+      target: "BIT"
+      precision_loss: false
+
+    JSON:
+      target: "JSON"
+      precision_loss: false
+    JSONB:
+      target: "JSON"
+      safe_fallback: "TEXT"
+      note: "MySQL 5.7+ 支持 JSON，低版本使用 TEXT"
+    ARRAY:
+      target: "JSON"
+      safe_fallback: "TEXT"
+      note: "MySQL 不原生支持 ARRAY，转换为 JSON 或 TEXT"
+
+  # PostgreSQL → SQLite
+  postgresql_to_sqlite:
+    SMALLINT:
+      target: "INTEGER"
+      precision_loss: true
+    INTEGER:
+      target: "INTEGER"
+      precision_loss: false
+    BIGINT:
+      target: "INTEGER"
+      precision_loss: true
+
+    REAL:
+      target: "REAL"
+      precision_loss: true
+    DOUBLE_PRECISION:
+      target: "REAL"
+      precision_loss: true
+    NUMERIC:
+      target: "REAL"
+      precision_loss: true
+
+    CHAR:
+      target: "TEXT"
+      precision_loss: true
+    VARCHAR:
+      target: "TEXT"
+      precision_loss: true
+    TEXT:
+      target: "TEXT"
+      precision_loss: false
+
+    BYTEA:
+      target: "BLOB"
+      precision_loss: false
+
+    DATE:
+      target: "TEXT"
+      note: "SQLite 存储为 TEXT"
+    TIME:
+      target: "TEXT"
+      note: "SQLite 存储为 TEXT"
+    TIMESTAMP:
+      target: "TEXT"
+      note: "SQLite 存储为 TEXT"
+
+    BOOLEAN:
+      target: "INTEGER"
+      precision_loss: false
+    BIT:
+      target: "INTEGER"
+      precision_loss: true
+
+    JSON:
+      target: "TEXT"
+      precision_loss: false
+    JSONB:
+      target: "BLOB"
+      precision_loss: false
+    ARRAY:
+      target: "TEXT"
+      note: "SQLite 不支持 ARRAY"
+
+  # SQLite → MySQL
+  sqlite_to_mysql:
+    INTEGER:
+      target: "INT"
+      precision_loss: true
+      note: "SQLite INTEGER 可能是 BIGINT，这里选择 INT"
+    REAL:
+      target: "DOUBLE"
+      precision_loss: false
+    TEXT:
+      target: "VARCHAR(65535)"
+      safe_fallback: "TEXT"
+      requires_user: true
+      user_options:
+        - label: "转换为 VARCHAR(65535)"
+          value: "VARCHAR(65535)"
+        - label: "保持为 TEXT"
+          value: "TEXT"
+        - label: "转换为 LONGTEXT"
+          value: "LONGTEXT"
+      note: "SQLite TEXT 存储任意长度字符串"
+    BLOB:
+      target: "LONGBLOB"
+      safe_fallback: "BLOB"
+      requires_user: true
+      user_options:
+        - label: "转换为 LONGBLOB"
+          value: "LONGBLOB"
+        - label: "转换为 BLOB"
+          value: "BLOB"
+        - label: "转换为 MEDIUMBLOB"
+          value: "MEDIUMBLOB"
+      note: "SQLite BLOB 存储任意长度二进制"

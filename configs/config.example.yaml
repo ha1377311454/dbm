@@ -1,0 +1,36 @@
+# DBM 配置文件示例
+
+server:
+  host: "0.0.0.0"
+  port: 2028
+
+database:
+  # DBM 自身使用的数据库路径（SQLite）
+  path: "~/.local/share/dbm/dbm.db"
+
+security:
+  # 加密密钥（留空则自动生成）
+  encryption_key: ""
+
+logging:
+  # 日志级别: debug, info, warn, error
+  level: "info"
+  # 日志文件路径（留空则输出到 stdout）
+  file: ""
+
+monitoring:
+  # 是否启用监控
+  enabled: true
+  # 慢查询阈值
+  slow_query_threshold: 3s
+
+# 连接池配置
+pool:
+  # 最大空闲连接数
+  max_idle_conns: 10
+  # 最大打开连接数
+  max_open_conns: 100
+  # 连接最大存活时间
+  conn_max_lifetime: 1h
+  # 空闲连接最大存活时间
+  conn_max_idle_time: 10m
