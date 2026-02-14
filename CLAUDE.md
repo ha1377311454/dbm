@@ -6,7 +6,7 @@
 
 | 日期       | 变更内容                                      |
 |------------|----------------------------------------------|
-| 2026-02-14 | 添加 KingBase 支持，完善架构说明 |
+| 2026-02-14 | 添加 KingBase 支持，完善架构说明；添加表结构修改功能；添加类型映射功能；添加 SQL 导出预览 API |
 | 2026-02-13 | 初始文档创建，记录项目架构与开发规范 |
 
 ---
@@ -90,7 +90,8 @@ dbm/
 │   │   └── database.go  # 数据库服务
 │   ├── export/           # 导出引擎
 │   │   ├── csv.go        # CSV 导出器
-│   │   └── sql.go       # SQL 导出器
+│   │   ├── sql.go        # SQL 导出器
+│   │   └── type_mapper.go # 类型映射器
 │   ├── model/            # 数据模型
 │   │   ├── connection.go # 连接配置模型
 │   │   ├── database.go   # 数据库元数据模型
@@ -367,6 +368,7 @@ BASE_URL: /api/v1
 |------|-----------------------------------|----------------------|
 | POST | /connections/:id/export/csv      | CSV 导出              |
 | POST | /connections/:id/export/sql      | SQL 导出              |
+| POST | /connections/:id/export/sql/preview | SQL 导出类型映射预览 |
 
 ### 分组管理
 
@@ -519,6 +521,79 @@ A: 参考 `internal/adapter/mysql.go` 实现 `DatabaseAdapter` 接口
 | Pinia            | 2.1+  | 状态管理    |
 | Axios            | 1.6+  | HTTP 客户端 |
 | ECharts          | 5.5+  | 图表组件    |
+
+---
+
+## 类型映射功能
+
+### 功能说明
+
+SQL 导出类型映射功能用于跨数据库迁移时的类型转换，确保不同数据库之间的数据类型兼容性。
+
+### 配置文件
+
+类型映射规则存储在 `configs/type_mapping.yaml` 中，支持以下配置：
+
+```yaml
+type_mapping:
+  mysql_to_postgresql:
+    TINYINT:
+      target: "SMALLINT"
+      safe_fallback: "INTEGER"
+      precision_loss: true
+    DATETIME:
+      target: "TIMESTAMP"
+      precision_loss: false
+```
+
+### API 使用
+
+**预览类型映射**：
+
+```bash
+POST /api/v1/connections/:id/export/sql/preview
+Content-Type: application/json
+
+{
+  "tables": ["users", "orders"],
+  "targetDbType": "postgresql"
+}
+```
+
+**响应**：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "success": true,
+    "mapped": {
+      "TINYINT": "SMALLINT",
+      "DATETIME": "TIMESTAMP",
+      "VARCHAR(255)": "VARCHAR(255)"
+    },
+    "warnings": [
+      "TINYINT → SMALLINT (有精度损失)"
+    ],
+    "summary": {
+      "total": 15,
+      "direct": 12,
+      "fallback": 2,
+      "userChoice": 1,
+      "lossyCount": 1
+    }
+  }
+}
+```
+
+### 扩展类型映射
+
+添加新的数据库类型映射：
+
+1. 在 `configs/type_mapping.yaml` 中添加映射规则
+2. 在 `internal/export/type_mapper.go` 中验证映射加载
+3. 测试跨数据库导出功能
 
 ---
 

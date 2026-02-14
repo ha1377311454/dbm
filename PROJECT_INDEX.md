@@ -29,7 +29,10 @@
 - **lib/pq** (v1.11.2) - PostgreSQL 驱动
 - **mattn/go-sqlite3** (v1.14.34) - SQLite 驱动
 - **ClickHouse/clickhouse-go/v2** (v2.43.0) - ClickHouse 驱动
+- **kingbase.com/gokb** (v1.0.0) - KingBase 驱动（本地模块）
 - **google/uuid** (v1.6.0) - UUID 生成
+- **golang.org/x/crypto** (v0.47.0) - AES-256-GCM 密码加密
+- **gopkg.in/yaml.v3** (v3.0.1) - YAML 配置解析
 
 **前端核心依赖**：
 - **Vue.js** (v3.4+) - 前端框架
@@ -41,10 +44,11 @@
 
 ### 支持的数据库类型
 
-- MySQL / MariaDB
-- PostgreSQL
-- SQLite
-- ClickHouse
+- MySQL / MariaDB (5.7+, 8.0+)
+- PostgreSQL (12+, 14+, 15+)
+- SQLite (3.x)
+- ClickHouse (22.3+)
+- KingBase (ES V8)
 
 ### 项目目录结构
 
@@ -53,9 +57,10 @@ dbm/
 ├── cmd/dbm/              # 程序入口
 ├── internal/
 │   ├── adapter/          # 数据库适配器（插件化设计）
+│   │   └── gokb/         # KingBase 驱动（本地模块）
 │   ├── connection/       # 连接管理
 │   ├── service/          # 业务服务层
-│   ├── export/           # 导出引擎
+│   ├── export/           # 导出引擎（含类型映射）
 │   ├── model/            # 数据模型
 │   ├── server/           # HTTP 服务器
 │   └── assets/          # 嵌入的前端资源
@@ -92,6 +97,8 @@ dbm/
 | [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | PostgreSQL 适配器实现 |
 | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | SQLite 适配器实现 |
 | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | ClickHouse 适配器实现 |
+| [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | KingBase 适配器实现 |
+| [internal/adapter/gokb/](./internal/adapter/gokb/) | KingBase 驱动（本地模块） |
 
 ### 数据模型文件
 
@@ -107,6 +114,7 @@ dbm/
 |---------|---------|
 | [internal/export/csv.go](./internal/export/csv.go) | CSV 导出器 |
 | [internal/export/sql.go](./internal/export/sql.go) | SQL 导出器 |
+| [internal/export/type_mapper.go](./internal/export/type_mapper.go) | 类型映射器（跨数据库迁移） |
 
 ### 前端核心文件
 
@@ -124,6 +132,10 @@ dbm/
 | [Makefile](./Makefile) | 构建命令定义 |
 | [scripts/build.sh](./scripts/build.sh) | 构建脚本 |
 | [configs/config.example.yaml](./configs/config.example.yaml) | 配置示例 |
+| [configs/type_mapping.yaml](./configs/type_mapping.yaml) | 类型映射配置（跨数据库迁移） |
+| [CLAUDE.md](./CLAUDE.md) | AI 开发指南 |
+| [docs/DESIGN.md](./docs/DESIGN.md) | 设计文档 |
+| [docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更日志 |
 
 ---
 
@@ -138,10 +150,13 @@ dbm/
 **核心文件**：
 - [adapter.go](./internal/adapter/adapter.go) - 定义 DatabaseAdapter 接口
 - [factory.go](./internal/adapter/factory.go) - 适配器工厂
+- [base.go](./internal/adapter/base.go) - 基础适配器（公共方法）
 - [mysql.go](./internal/adapter/mysql.go) - MySQL 实现
 - [postgresql.go](./internal/adapter/postgresql.go) - PostgreSQL 实现
 - [sqlite.go](./internal/adapter/sqlite.go) - SQLite 实现
 - [clickhouse.go](./internal/adapter/clickhouse.go) - ClickHouse 实现
+- [kingbase.go](./internal/adapter/kingbase.go) - KingBase 实现
+- [gokb/](./internal/adapter/gokb/) - KingBase 驱动（本地模块）
 
 **依赖**：
 - `internal/model` - 数据模型定义
@@ -150,13 +165,34 @@ dbm/
 **对外接口**：
 ```go
 type DatabaseAdapter interface {
+    // 连接
     Connect(config *model.ConnectionConfig) (*sql.DB, error)
+
+    // 元数据查询
     GetDatabases(db *sql.DB) ([]string, error)
     GetTables(db *sql.DB, database string) ([]model.TableInfo, error)
     GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error)
+    GetViews(db *sql.DB, database string) ([]model.ViewInfo, error)
+
+    // SQL 执行
+    Execute(db *sql.DB, query string) (*model.ExecuteResult, error)
     Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error)
-    Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error)
-    // ... 更多方法
+
+    // 数据编辑
+    Insert(db *sql.DB, database, table string, data map[string]interface{}) error
+    Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error
+    Delete(db *sql.DB, database, table, where string) error
+
+    // 表结构修改
+    AlterTable(db *sql.DB, req *model.AlterTableRequest) error
+    RenameTable(db *sql.DB, database, oldName, newName string) error
+
+    // 导出
+    ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error
+    ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error
+
+    // 建表语句生成
+    GetCreateTableSQL(db *sql.DB, database, table string) (string, error)
 }
 ```
 
@@ -223,11 +259,12 @@ type DatabaseAdapter interface {
 
 **位置**：[internal/export/](./internal/export/)
 
-**功能**：导出引擎，支持 CSV 和 SQL 格式导出
+**功能**：导出引擎，支持 CSV、SQL 格式导出，含类型映射功能
 
 **核心文件**：
 - [csv.go](./internal/export/csv.go) - CSV 导出器
 - [sql.go](./internal/export/sql.go) - SQL 导出器
+- [type_mapper.go](./internal/export/type_mapper.go) - 类型映射器（跨数据库迁移）
 
 **依赖**：
 - `internal/adapter` - 数据库适配器接口
@@ -379,12 +416,20 @@ BASE_URL: /api/v1
 | PUT    | /connections/:id/tables/:table/data | 更新数据 |
 | DELETE | /connections/:id/tables/:table/data | 删除数据 |
 
+### 表结构修改
+
+| 方法  | 路径                               | 描述                   |
+|------|-----------------------------------|----------------------|
+| POST | /connections/:id/tables/:table/alter  | 修改表结构 |
+| POST | /connections/:id/tables/:table/rename | 重命名表   |
+
 ### 导出
 
 | 方法  | 路径                               | 描述                   |
 |------|-----------------------------------|----------------------|
 | POST | /connections/:id/export/csv      | CSV 导出              |
 | POST | /connections/:id/export/sql      | SQL 导出              |
+| POST | /connections/:id/export/sql/preview | SQL 导出类型映射预览 |
 
 ### 分组管理
 
@@ -475,6 +520,8 @@ npm run build  # 生产构建
 | 修改连接配置模型 | [internal/model/connection.go](./internal/model/connection.go) | ConnectionConfig 结构体 |
 | 修改密码加密方式 | [internal/connection/crypto.go](./internal/connection/crypto.go) | EncryptPassword/DecryptPassword 函数 |
 | 添加新的导出格式 | [internal/export/](./internal/export/) | 创建新的导出器文件 |
+| 修改类型映射规则 | [configs/type_mapping.yaml](./configs/type_mapping.yaml) | YAML 配置文件 |
+| 修改表结构修改逻辑 | [internal/adapter/](./internal/adapter/) | 各适配器的 AlterTable 方法 |
 | 修改前端 UI 组件 | [web/src/views/](./web/src/views/) | Vue 组件文件 |
 | 修改 API 客户端 | [web/src/api/](./web/src/api/) | API 调用封装 |
 | 修改构建配置 | [Makefile](./Makefile) | 构建目标定义 |
@@ -485,10 +532,11 @@ npm run build  # 生产构建
 
 | 数据库类型 | 适配器文件 | 核心方法 |
 |-----------|-----------|---------|
-| MySQL | [internal/adapter/mysql.go](./internal/adapter/mysql.go) | Connect, GetDatabases, GetTables, Query, Execute |
-| PostgreSQL | [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | Connect, GetDatabases, GetTables, Query, Execute |
-| SQLite | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | Connect, GetDatabases, GetTables, Query, Execute |
-| ClickHouse | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | Connect, GetDatabases, GetTables, Query, Execute |
+| MySQL | [internal/adapter/mysql.go](./internal/adapter/mysql.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
+| PostgreSQL | [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
+| SQLite | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
+| ClickHouse | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
+| KingBase | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
 
 ### 常见任务快速定位
 
@@ -529,6 +577,13 @@ npm run build  # 生产构建
 3. 在各适配器中实现新方法
 4. 在 `server/handler.go` 添加对应的 API 路由
 
+### 添加类型映射规则
+
+1. 在 `configs/type_mapping.yaml` 中添加新的映射规则
+2. 规则格式：`source_type_to_target_type`
+3. 支持设置目标类型、安全降级、精度损失标记
+4. 重启服务使配置生效
+
 ### 扩展 API
 
 1. 在 `internal/server/handler.go` 中添加新的路由和处理函数
@@ -548,7 +603,10 @@ npm run build  # 生产构建
 | lib/pq                             | 1.11.2  | PostgreSQL 驱动 |
 | mattn/go-sqlite3                   | 1.14.34 | SQLite 驱动     |
 | ClickHouse/clickhouse-go/v2        | 2.43.0  | ClickHouse 驱动 |
+| kingbase.com/gokb                   | 1.0.0   | KingBase 驱动（本地模块） |
 | google/uuid                        | 1.6.0   | UUID 生成       |
+| golang.org/x/crypto                | 0.47.0  | AES-256-GCM 加密 |
+| gopkg.in/yaml.v3                    | 3.0.1   | YAML 配置解析   |
 
 ### 前端主要依赖
 
