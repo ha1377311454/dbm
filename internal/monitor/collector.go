@@ -23,8 +23,6 @@ type Collector struct {
 
 	// 指标描述
 	scrapeDurationDesc *prometheus.Desc
-	scrapeFailuresDesc *prometheus.Desc
-	upDesc             *prometheus.Desc
 }
 
 // NewCollector 创建采集器
@@ -42,16 +40,6 @@ func NewCollector(connMgr *connection.Manager, factory adapter.AdapterFactory) *
 			"Collector time duration.",
 			nil, nil,
 		),
-		scrapeFailuresDesc: prometheus.NewDesc(
-			prometheus.BuildFQName(Namespace, "", "scrape_failures_total"),
-			"Number of errors while scraping database.",
-			[]string{"connection_id", "connection_name", "db_type", "host", "port", "error"}, nil,
-		),
-		upDesc: prometheus.NewDesc(
-			prometheus.BuildFQName(Namespace, "", "up"),
-			"Whether the database connection is up.",
-			[]string{"connection_id", "connection_name", "db_type", "host", "port"}, nil,
-		),
 	}
 }
 
@@ -61,15 +49,16 @@ func (c *Collector) SetTimeout(timeout time.Duration) {
 }
 
 // RegisterScraper 注册采集器
-func (c *Collector) RegisterScraper(dbType model.DatabaseType, scraper Scraper) {
-	c.scrapers[dbType] = append(c.scrapers[dbType], scraper)
+// dbType: 数据库类型字符串，如 "mysql", "postgresql", "dm", "kingbase"
+func (c *Collector) RegisterScraper(dbType string, scraper Scraper) {
+	c.scrapers[model.DatabaseType(dbType)] = append(c.scrapers[model.DatabaseType(dbType)], scraper)
 }
 
 // Describe 实现 prometheus.Collector 接口
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.scrapeDurationDesc
-	ch <- c.scrapeFailuresDesc
-	ch <- c.upDesc
+	// up 和 scrape_failures 指标是动态创建的，每个数据库类型有不同的前缀
+	// 所以不需要在这里注册固定的描述符
 }
 
 // Collect 实现 prometheus.Collector 接口
@@ -84,8 +73,13 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	configs, err := c.connMgr.ListConfigs()
 	if err != nil {
 		// 记录获取配置列表失败
+		scrapeFailuresDesc := prometheus.NewDesc(
+			prometheus.BuildFQName(Namespace, "", "scrape_failures_total"),
+			"Number of errors while scraping database.",
+			[]string{"connection_id", "connection_name", "db_type", "host", "port", "error"}, nil,
+		)
 		ch <- prometheus.MustNewConstMetric(
-			c.scrapeFailuresDesc,
+			scrapeFailuresDesc,
 			prometheus.CounterValue,
 			1,
 			"", "", "", "", "", fmt.Sprintf("Failed to list configs: %v", err),
@@ -106,26 +100,14 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					ch <- prometheus.MustNewConstMetric(
-						c.scrapeFailuresDesc,
-						prometheus.CounterValue,
-						1,
-						cfg.ID, cfg.Name, string(cfg.Type), cfg.Host, fmt.Sprint(cfg.Port),
-						fmt.Sprintf("Panic: %v", r),
-					)
+					c.sendScrapeFailure(ch, cfg, fmt.Sprintf("Panic: %v", r))
 				}
 			}()
 
 			// 使用 GetConfig 获取解密后的配置
 			config, err := c.connMgr.GetConfig(cfg.ID)
 			if err != nil {
-				ch <- prometheus.MustNewConstMetric(
-					c.scrapeFailuresDesc,
-					prometheus.CounterValue,
-					1,
-					cfg.ID, cfg.Name, string(cfg.Type), cfg.Host, fmt.Sprint(cfg.Port),
-					fmt.Sprintf("Failed to get config: %v", err),
-				)
+				c.sendScrapeFailure(ch, cfg, fmt.Sprintf("Failed to get config: %v", err))
 				return
 			}
 			c.scrapeConnection(ctx, ch, config)
@@ -141,26 +123,45 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	)
 }
 
+// sendScrapeFailure 发送采集失败指标
+func (c *Collector) sendScrapeFailure(ch chan<- prometheus.Metric, config *model.ConnectionConfig, errMsg string) {
+	dbType := string(config.Type)
+	scrapeFailuresDesc := prometheus.NewDesc(
+		prometheus.BuildFQName(dbType, "", "scrape_failures_total"),
+		"Number of errors while scraping database.",
+		[]string{"connection_id", "connection_name", "db_type", "host", "port", "error"}, nil,
+	)
+	ch <- prometheus.MustNewConstMetric(
+		scrapeFailuresDesc,
+		prometheus.CounterValue,
+		1,
+		config.ID, config.Name, dbType, config.Host, fmt.Sprint(config.Port), errMsg,
+	)
+}
+
 // scrapeConnection 采集单个连接的指标
 func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.Metric, config *model.ConnectionConfig) {
+	dbType := string(config.Type)
+
+	// 创建该数据库类型的 up 指标描述符
+	upDesc := prometheus.NewDesc(
+		prometheus.BuildFQName(dbType, "", "up"),
+		"Whether the database connection is up.",
+		[]string{"connection_id", "connection_name", "db_type", "host", "port"}, nil,
+	)
+
 	// 创建新的数据库连接（不使用连接池）
 	db, err := c.createConnection(config)
 	if err != nil {
 		// 连接失败，记录 up=0
 		ch <- prometheus.MustNewConstMetric(
-			c.upDesc,
+			upDesc,
 			prometheus.GaugeValue,
 			0,
-			config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
+			config.ID, config.Name, dbType, config.Host, fmt.Sprint(config.Port),
 		)
 		// 记录失败
-		ch <- prometheus.MustNewConstMetric(
-			c.scrapeFailuresDesc,
-			prometheus.CounterValue,
-			1,
-			config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
-			fmt.Sprintf("Connection failed: %v", err),
-		)
+		c.sendScrapeFailure(ch, config, fmt.Sprintf("Connection failed: %v", err))
 		return
 	}
 	defer db.Close()
@@ -169,28 +170,22 @@ func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.M
 	if err := db.PingContext(ctx); err != nil {
 		// Ping 失败，记录 up=0
 		ch <- prometheus.MustNewConstMetric(
-			c.upDesc,
+			upDesc,
 			prometheus.GaugeValue,
 			0,
-			config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
+			config.ID, config.Name, dbType, config.Host, fmt.Sprint(config.Port),
 		)
 		// 记录失败
-		ch <- prometheus.MustNewConstMetric(
-			c.scrapeFailuresDesc,
-			prometheus.CounterValue,
-			1,
-			config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
-			fmt.Sprintf("Ping failed: %v", err),
-		)
+		c.sendScrapeFailure(ch, config, fmt.Sprintf("Ping failed: %v", err))
 		return
 	}
 
 	// 连接成功，记录 up=1
 	ch <- prometheus.MustNewConstMetric(
-		c.upDesc,
+		upDesc,
 		prometheus.GaugeValue,
 		1,
-		config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
+		config.ID, config.Name, dbType, config.Host, fmt.Sprint(config.Port),
 	)
 
 	// 获取该数据库类型的采集器
@@ -205,24 +200,18 @@ func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.M
 		Labels: map[string]string{
 			"connection_id":   config.ID,
 			"connection_name": config.Name,
-			"db_type":         string(config.Type),
+			"db_type":         dbType,
 			"host":            config.Host,
 			"port":            fmt.Sprint(config.Port),
 		},
-		DBType: string(config.Type),
+		DBType: dbType,
 	}
 
 	// 执行所有采集器
 	for _, scraper := range scrapers {
 		if err := scraper.Scrape(ctx, db, ch, scraperConfig); err != nil {
 			// 记录采集失败
-			ch <- prometheus.MustNewConstMetric(
-				c.scrapeFailuresDesc,
-				prometheus.CounterValue,
-				1,
-				config.ID, config.Name, string(config.Type), config.Host, fmt.Sprint(config.Port),
-				fmt.Sprintf("Scraper[%s] failed: %v", scraper.Name(), err),
-			)
+			c.sendScrapeFailure(ch, config, fmt.Sprintf("Scraper[%s] failed: %v", scraper.Name(), err))
 		}
 	}
 }

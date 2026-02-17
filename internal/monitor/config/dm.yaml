@@ -1,4 +1,4 @@
-# MySQL 数据库监控指标配置
+# 达梦数据库监控指标配置
 metrics:
   # 运行时长指标
   - context: uptime
@@ -8,10 +8,7 @@ metrics:
     metricstype:
       seconds: gauge
     request: |
-      SELECT VERSION() AS version,
-             VARIABLE_VALUE AS seconds
-      FROM performance_schema.global_status
-      WHERE VARIABLE_NAME = 'UPTIME'
+      SELECT * FROM V$INSTANCE
 
   # 会话连接数指标
   - context: sessions
@@ -26,10 +23,10 @@ metrics:
       total: gauge
     request: |
       SELECT
-        SUM(CASE WHEN COMMAND != 'Sleep' THEN 1 ELSE 0 END) AS active,
-        SUM(CASE WHEN COMMAND = 'Sleep' THEN 1 ELSE 0 END) AS idle,
+        SUM(CASE WHEN STATE = 'ACTIVE' THEN 1 ELSE 0 END) AS active,
+        SUM(CASE WHEN STATE = 'IDLE' THEN 1 ELSE 0 END) AS idle,
         COUNT(*) AS total
-      FROM information_schema.PROCESSLIST
+      FROM V$SESSIONS
 
   # 最大连接数指标
   - context: connections
@@ -44,7 +41,7 @@ metrics:
       available_connections: gauge
     request: |
       SELECT
-        (SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'MAX_CONNECTIONS') AS max_connections,
-        (SELECT COUNT(*) FROM information_schema.PROCESSLIST) AS current_connections,
-        (SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'MAX_CONNECTIONS') -
-          (SELECT COUNT(*) FROM information_schema.PROCESSLIST) AS available_connections
+        (SELECT PARA_VALUE FROM V$DM_INI WHERE PARA_NAME = 'MAX_SESSIONS') AS max_connections,
+        (SELECT COUNT(*) FROM V$SESSIONS) AS current_connections,
+        CAST((SELECT PARA_VALUE FROM V$DM_INI WHERE PARA_NAME = 'MAX_SESSIONS') AS INT) -
+          (SELECT COUNT(*) FROM V$SESSIONS) AS available_connections

@@ -262,12 +262,14 @@ func TestMySQLScraperSessions(t *testing.T) {
 
 // TestLoadMySQLConfig 测试 MySQL 配置文件加载
 func TestLoadMySQLConfig(t *testing.T) {
-	mysqlCfg, pgCfg, err := InitDefaultMetrics()
+	configs, err := InitDefaultMetrics()
 	require.NoError(t, err, "InitDefaultMetrics should not return error")
-	assert.NotNil(t, mysqlCfg, "MySQL config should not be nil")
-	assert.NotNil(t, pgCfg, "PostgreSQL config should not be nil")
+	assert.NotNil(t, configs, "Config map should not be nil")
 
 	// 验证 MySQL 配置
+	mysqlCfg, ok := configs["mysql"]
+	assert.True(t, ok, "MySQL config should exist")
+	assert.NotNil(t, mysqlCfg, "MySQL config should not be nil")
 	assert.NotEmpty(t, mysqlCfg.Metrics, "MySQL config should have metrics")
 
 	// 验证每个指标配置

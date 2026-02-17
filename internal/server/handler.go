@@ -72,19 +72,10 @@ func NewServer(connManager *connection.Manager, staticFS http.FileSystem) *Serve
 }
 
 // initMonitorMetrics 初始化监控指标配置
+// 使用 InitAllScrapers 自动初始化所有支持数据库的监控
+// 添加新数据库支持时，只需在 monitor/init.go 的 dbTypeConfigFile 中添加配置文件名即可
 func (s *Server) initMonitorMetrics() error {
-	mysqlCfg, pgCfg, err := monitor.InitDefaultMetrics()
-	if err != nil {
-		return err
-	}
-
-	monitor.RegisterMetricsConfig("mysql", mysqlCfg)
-	s.collector.RegisterScraper(model.DatabaseMySQL, monitor.NewDefaultScraper("mysql", mysqlCfg))
-
-	monitor.RegisterMetricsConfig("postgresql", pgCfg)
-	s.collector.RegisterScraper(model.DatabasePostgreSQL, monitor.NewDefaultScraper("postgresql", pgCfg))
-
-	return nil
+	return monitor.InitAllScrapers(s.collector)
 }
 
 // setupRoutes 设置路由

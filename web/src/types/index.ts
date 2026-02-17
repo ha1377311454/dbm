@@ -25,6 +25,7 @@ export interface ConnectionConfig {
   updatedAt: string
   groupId: string // 所属分组 ID
   connected: boolean
+  monitoringEnabled: boolean // 是否启用监控
 }
 
 // 分组信息

@@ -126,8 +126,9 @@ func (s *DefaultScraper) scrapeMetric(ctx context.Context, db *sql.DB, ch chan<-
 				continue
 			}
 
-			// 构建完整的指标名称: dbm_<context>_<metricName>
-			fullMetricName := prometheus.BuildFQName(Namespace, metric.Context, metricName)
+			// 构建完整的指标名称: <dbType>_<context>_<metricName>
+			// 例如: mysql_uptime_seconds, postgresql_sessions_active
+			fullMetricName := prometheus.BuildFQName(s.dbType, metric.Context, metricName)
 
 			// 获取指标类型
 			valueType := GetMetricType(metricName, metric.MetricsType)

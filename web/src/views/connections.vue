@@ -79,14 +79,23 @@
               >
                 {{ getDatabaseTypeName(data.data.type) }}
               </el-tag>
-              <el-tag 
-                v-if="data.type === 'connection' && data.data.connected" 
-                size="small" 
-                type="success" 
+              <el-tag
+                v-if="data.type === 'connection' && data.data.connected"
+                size="small"
+                type="success"
                 effect="dark"
                 class="status-tag"
               >
                 在线
+              </el-tag>
+              <el-tag
+                v-if="data.type === 'connection' && data.data.monitoringEnabled"
+                size="small"
+                type="warning"
+                effect="plain"
+                class="status-tag"
+              >
+                监控中
               </el-tag>
             </span>
             <span class="node-actions">
@@ -103,6 +112,9 @@
                     <el-dropdown-menu>
                       <el-dropdown-item @click="handleTest(data.data)">测试连接</el-dropdown-item>
                       <el-dropdown-item @click="handleEdit(data.data)">编辑配置</el-dropdown-item>
+                      <el-dropdown-item @click="handleToggleMonitoring(data.data)">
+                        {{ data.data.monitoringEnabled ? '关闭监控' : '开启监控' }}
+                      </el-dropdown-item>
                       <el-dropdown-item @click="handleConnectionToggle(data.data, !data.data.connected)">
                         {{ data.data.connected ? '断开连接' : '建立连接' }}
                       </el-dropdown-item>
@@ -175,6 +187,14 @@
             placeholder="/path/to/database.db"
           />
           <el-input v-else v-model="formData.database" />
+        </el-form-item>
+        <el-form-item label="启用监控">
+          <el-switch
+            v-model="formData.monitoringEnabled"
+            active-text="开启"
+            inactive-text="关闭"
+          />
+          <span class="form-item-tip">开启后将通过 Prometheus 采集数据库运行指标</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -257,6 +277,7 @@ const formData = reactive({
   password: '',
   database: '',
   groupId: '',
+  monitoringEnabled: false,
   params: {} as Record<string, string>
 })
 
@@ -525,6 +546,24 @@ async function handleConnectionToggle(row: ConnectionConfig, val: boolean) {
   }
 }
 
+async function handleToggleMonitoring(row: ConnectionConfig) {
+  const newStatus = !row.monitoringEnabled
+  const action = newStatus ? '开启' : '关闭'
+  try {
+    await connectionsStore.updateConnection(row.id, {
+      ...row,
+      monitoringEnabled: newStatus
+    })
+    ElMessage.success(`监控已${action}`)
+  } catch (e: any) {
+    ElNotification.error({
+      title: '操作失败',
+      message: e.response?.data?.message || e.message || '未知错误',
+      position: 'top-right'
+    })
+  }
+}
+
 async function handleTestConfig() {
   testing.value = true
   try {
@@ -664,6 +703,7 @@ function resetForm() {
     password: '',
     database: '',
     groupId: '',
+    monitoringEnabled: false,
     params: {}
   })
 }
@@ -856,5 +896,11 @@ async function handleFileImport(event: Event) {
   border-radius: 4px;
   padding: 10px;
   background: #fff;
+}
+
+.form-item-tip {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #909399;
 }
 </style>
