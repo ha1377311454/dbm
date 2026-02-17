@@ -1,0 +1,50 @@
+# MySQL 数据库监控指标配置
+metrics:
+  # 运行时长指标
+  - context: uptime
+    labels: ["version"]
+    metricsdesc:
+      seconds: "Gauge metric with uptime of database in seconds."
+    metricstype:
+      seconds: gauge
+    request: |
+      SELECT VERSION() AS version,
+             VARIABLE_VALUE AS seconds
+      FROM performance_schema.global_status
+      WHERE VARIABLE_NAME = 'UPTIME'
+
+  # 会话连接数指标
+  - context: sessions
+    labels: []
+    metricsdesc:
+      active: "Gauge metric with count of active sessions (non-sleep)."
+      idle: "Gauge metric with count of idle sessions (sleep)."
+      total: "Gauge metric with total number of sessions."
+    metricstype:
+      active: gauge
+      idle: gauge
+      total: gauge
+    request: |
+      SELECT
+        SUM(CASE WHEN COMMAND != 'Sleep' THEN 1 ELSE 0 END) AS active,
+        SUM(CASE WHEN COMMAND = 'Sleep' THEN 1 ELSE 0 END) AS idle,
+        COUNT(*) AS total
+      FROM information_schema.PROCESSLIST
+
+  # 最大连接数指标
+  - context: connections
+    labels: []
+    metricsdesc:
+      max_connections: "Gauge metric with maximum allowed connections."
+      current_connections: "Gauge metric with current number of connections."
+      available_connections: "Gauge metric with available connections."
+    metricstype:
+      max_connections: gauge
+      current_connections: gauge
+      available_connections: gauge
+    request: |
+      SELECT
+        (SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'MAX_CONNECTIONS') AS max_connections,
+        (SELECT COUNT(*) FROM information_schema.PROCESSLIST) AS current_connections,
+        (SELECT VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'MAX_CONNECTIONS') -
+          (SELECT COUNT(*) FROM information_schema.PROCESSLIST) AS available_connections

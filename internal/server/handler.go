@@ -5,6 +5,7 @@ import (
 	"dbm/internal/connection"
 	"dbm/internal/export"
 	"dbm/internal/model"
+	"dbm/internal/monitor"
 	"dbm/internal/service"
 	"io"
 	"mime"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server HTTP 服务器
@@ -25,6 +28,8 @@ type Server struct {
 	connectionSvc *service.ConnectionService
 	databaseSvc   *service.DatabaseService
 	staticFS      http.FileSystem
+	collector     *monitor.Collector
+	registry      *prometheus.Registry
 }
 
 // NewServer 创建服务器
@@ -39,16 +44,47 @@ func NewServer(connManager *connection.Manager, staticFS http.FileSystem) *Serve
 	databaseSvc := service.NewDatabaseService(connManager, factory)
 	connectionSvc := service.NewConnectionService(connManager, factory)
 
+	// 创建 Prometheus Registry
+	registry := prometheus.NewRegistry()
+
+	// 创建监控采集器
+	collector := monitor.NewCollector(connManager, factory)
+	registry.MustRegister(collector)
+
 	s := &Server{
 		engine:        engine,
 		connManager:   connManager,
 		connectionSvc: connectionSvc,
 		databaseSvc:   databaseSvc,
 		staticFS:      staticFS,
+		collector:     collector,
+		registry:      registry,
+	}
+
+	// 初始化监控配置
+	if err := s.initMonitorMetrics(); err != nil {
+		// 记录错误但不阻止启动
+		println("Failed to initialize monitor metrics:", err.Error())
 	}
 
 	s.setupRoutes()
 	return s
+}
+
+// initMonitorMetrics 初始化监控指标配置
+func (s *Server) initMonitorMetrics() error {
+	mysqlCfg, pgCfg, err := monitor.InitDefaultMetrics()
+	if err != nil {
+		return err
+	}
+
+	monitor.RegisterMetricsConfig("mysql", mysqlCfg)
+	s.collector.RegisterScraper(model.DatabaseMySQL, monitor.NewDefaultScraper("mysql", mysqlCfg))
+
+	monitor.RegisterMetricsConfig("postgresql", pgCfg)
+	s.collector.RegisterScraper(model.DatabasePostgreSQL, monitor.NewDefaultScraper("postgresql", pgCfg))
+
+	return nil
 }
 
 // setupRoutes 设置路由
@@ -845,8 +881,8 @@ func (s *Server) getMonitorStats(c *gin.Context) {
 
 // metricsHandler Prometheus 指标处理器
 func (s *Server) metricsHandler(c *gin.Context) {
-	// TODO: 实现 Prometheus 指标暴露
-	c.String(http.StatusOK, "# Prometheus metrics\n# dbm_connections_active %d\n# dbm_queries_total %d\n", 0, 0)
+	handler := promhttp.HandlerFor(s.registry, promhttp.HandlerOpts{})
+	handler.ServeHTTP(c.Writer, c.Request)
 }
 
 // ==================== 静态文件服务 ====================

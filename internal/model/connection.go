@@ -32,8 +32,9 @@ type ConnectionConfig struct {
 	Params    map[string]string `json:"params"`   // 额外参数
 	CreatedAt time.Time         `json:"createdAt"`
 	UpdatedAt time.Time         `json:"updatedAt"`
-	GroupID   string            `json:"groupId"`   // 所属分组 ID
-	Connected bool              `json:"connected"` // 运行时状态：是否已连接
+	GroupID           string `json:"groupId"`           // 所属分组 ID
+	Connected         bool   `json:"connected"`          // 运行时状态：是否已连接
+	MonitoringEnabled bool   `json:"monitoringEnabled"`  // 是否启用监控
 }
 
 // ConnectionParams 序列化参数
