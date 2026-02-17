@@ -16,6 +16,7 @@ const (
 	DatabaseOracle     DatabaseType = "oracle"
 	DatabaseClickHouse DatabaseType = "clickhouse"
 	DatabaseKingBase   DatabaseType = "kingbase"
+	DatabaseDM         DatabaseType = "dm" // 达梦数据库
 )
 
 // ConnectionConfig 连接配置

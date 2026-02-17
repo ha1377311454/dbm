@@ -6,6 +6,7 @@
 
 | 日期       | 变更内容                                      |
 |------------|----------------------------------------------|
+| 2026-02-17 | 添加达梦数据库（DM）支持                     |
 | 2026-02-14 | 添加 KingBase 支持，完善架构说明；添加表结构修改功能；添加类型映射功能；添加 SQL 导出预览 API |
 | 2026-02-13 | 初始文档创建，记录项目架构与开发规范 |
 
@@ -17,7 +18,7 @@ DBM (Database Manager) 是一个用 Go 语言开发的现代化、轻量级、�
 
 **核心价值**：
 
-- 多数据库统一管理（MySQL、PostgreSQL、SQLite、ClickHouse、KingBase）
+- 多数据库统一管理（MySQL、PostgreSQL、SQLite、ClickHouse、KingBase、DM）
 - 单文件部署，无额外依赖
 - 现代 Web 界面，操作便捷
 - 安全的 AES-256-GCM 密码加密存储
@@ -55,13 +56,13 @@ DBM (Database Manager) 是一个用 Go 语言开发的现代化、轻量级、�
                                    ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      数据库适配器接口层                                │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌────────┐ ┌──────┐ ┌──────┐       │
-│  │ MySQL│ │ PG    │ │SQLite│ │ClickHouse│ │KingBase│ │ MSSQL │       │
-│  └──────┘ └──────┘ └──────┘ └────────┘ └──────┘ └──────┘       │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌────────┐ ┌──────┐ ┌──────┐ ┌─────┐    │
+│  │ MySQL│ │ PG    │ │SQLite│ │ClickHouse│ │KingBase│ │  DM  │ │MSSQL │    │
+│  └──────┘ └──────┘ └──────┘ └────────┘ └──────┘ └──────┘ └─────┘    │
 └─────────────────────────────────────────────────────────────────────────┘
                                    ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│   MySQL │ PostgreSQL │ SQLite │ ClickHouse │ KingBase │ MSSQL │ Oracle │
+│ MySQL │ PostgreSQL │ SQLite │ ClickHouse │ KingBase │ DM │ MSSQL │ Oracle │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,6 +81,7 @@ dbm/
 │   │   ├── sqlite.go     # SQLite 适配器
 │   │   ├── clickhouse.go # ClickHouse 适配器
 │   │   ├── kingbase.go   # KingBase 适配器
+│   │   ├── dm.go         # 达梦数据库适配器
 │   │   └── gokb/         # KingBase 驱动（本地模块）
 │   ├── connection/       # 连接管理
 │   │   ├── manager.go    # 连接管理器（连接池、配置持久化）
@@ -342,15 +344,15 @@ BASE_URL: /api/v1
 
 **数据库特性差异**：
 
-| 操作 | MySQL | PostgreSQL | SQLite | ClickHouse | KingBase |
-|------|-------|------------|--------|------------|----------|
-| 添加列 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 删除列 | ✅ | ✅ | ❌ 需重建表 | ✅ | ✅ |
-| 修改列 | ✅ | ✅ 需多条语句 | ❌ 需重建表 | ✅ | ✅ 需多条语句 |
-| 重命名列 | ✅ | ✅ | ✅ (3.25.0+) | ✅ | ✅ |
-| 添加索引 | ✅ | ✅ | ✅ | ❌ 使用 ORDER BY | ✅ |
-| 删除索引 | ✅ | ✅ | ✅ | ❌ | ✅ |
-| 重命名表 | ✅ | ✅ | ✅ | ✅ (非复制表) | ✅ |
+| 操作 | MySQL | PostgreSQL | SQLite | ClickHouse | KingBase | DM |
+|------|-------|------------|--------|------------|----------|-----|
+| 添加列 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 删除列 | ✅ | ✅ | ❌ 需重建表 | ✅ | ✅ | ✅ |
+| 修改列 | ✅ | ✅ 需多条语句 | ❌ 需重建表 | ✅ | ✅ 需多条语句 | ✅ |
+| 重命名列 | ✅ | ✅ | ✅ (3.25.0+) | ✅ | ✅ | ✅ |
+| 添加索引 | ✅ | ✅ | ✅ | ❌ 使用 ORDER BY | ✅ | ✅ |
+| 删除索引 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 重命名表 | ✅ | ✅ | ✅ | ✅ (非复制表) | ✅ | ✅ |
 
 **ClickHouse 特别说明**：
 - 对于 `ReplicatedMergeTree` 表，ALTER 操作会通过 ZooKeeper 自动同步到所有副本
@@ -361,6 +363,13 @@ BASE_URL: /api/v1
 - KingBase 基于 PostgreSQL 内核，大部分语法与 PostgreSQL 兼容
 - 支持标准 SQL 语法和 PostgreSQL 扩展功能
 - 连接时使用 PostgreSQL 驱动（通过本地 gokb 模块）
+
+**达梦数据库（DM）特别说明**：
+- 达梦数据库是国产自主可控数据库，语法与 Oracle 有较高相似度
+- 使用 `gitee.com/chunanyong/dm` 驱动连接
+- 系统表结构与 Oracle 类似，使用 `ALL_TABLES`、`ALL_TAB_COLUMNS` 等视图
+- 标识符默认为大写，适配器中自动转换为大写
+- 支持完整的 DDL 和 DML 操作
 
 ### 导出
 
@@ -509,6 +518,7 @@ A: 参考 `internal/adapter/mysql.go` 实现 `DatabaseAdapter` 接口
 | mattn/go-sqlite3                   | 1.14.34 | SQLite 驱动     |
 | ClickHouse/clickhouse-go/v2        | 2.43.0  | ClickHouse 驱动 |
 | kingbase.com/gokb                   | 1.0.0   | KingBase 驱动（本地模块） |
+| gitee.com/chunanyong/dm            | 1.8.22  | 达梦数据库驱动   |
 | google/uuid                        | 1.6.0   | UUID 生成       |
 
 ### 前端主要依赖

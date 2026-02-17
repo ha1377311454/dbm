@@ -146,6 +146,7 @@
             <el-option label="SQLite" value="sqlite" />
             <el-option label="ClickHouse" value="clickhouse" />
             <el-option label="KingBase" value="kingbase" />
+            <el-option label="达梦数据库" value="dm" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="formData.type === 'clickhouse'" label="协议">
@@ -293,6 +294,10 @@ watch(filterText, (val) => {
   treeRef.value?.filter(val)
 })
 
+watch(() => formData.type, (val) => {
+  handleDbTypeChange(val)
+})
+
 const treeData = computed(() => {
   const groups = connectionsStore.groups
   const connections = connectionsStore.connections
@@ -374,13 +379,23 @@ const ClickHouseIcon = {
   }
 }
 
+const DMIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 128 128', width: '16', height: '16', style: 'margin-right: 8px;' }, [
+      h('path', { fill: '#E63946', d: 'M64 4C30.9 4 4 30.9 4 64s26.9 60 60 60 60-26.9 60-60S97.1 4 64 4zm0 110c-27.6 0-50-22.4-50-50S36.4 14 64 14s50 22.4 50 50-22.4 50-50 50z' }),
+      h('text', { x: '64', y: '75', 'text-anchor': 'middle', 'font-size': '32', 'font-weight': 'bold', fill: '#E63946' }, 'DM')
+    ])
+  }
+}
+
 function getDatabaseIcon(type: string) {
   const icons: Record<string, any> = {
     mysql: MysqlIcon,
     postgresql: PostgresIcon,
     sqlite: SqliteIcon,
     clickhouse: ClickHouseIcon,
-    kingbase: Monitor
+    kingbase: Monitor,
+    dm: DMIcon
   }
   return icons[type] || Monitor
 }
@@ -442,7 +457,8 @@ function getDatabaseTypeName(type: string) {
     postgresql: 'PostgreSQL',
     sqlite: 'SQLite',
     clickhouse: 'ClickHouse',
-    kingbase: 'KingBase'
+    kingbase: 'KingBase',
+    dm: '达梦数据库'
   }
   return names[type] || type
 }
@@ -453,7 +469,8 @@ function getDatabaseTypeColor(type: string) {
     postgresql: 'primary',
     sqlite: 'info',
     clickhouse: 'warning',
-    kingbase: 'danger'
+    kingbase: 'danger',
+    dm: 'danger'
   }
   return colors[type] || ''
 }
@@ -658,6 +675,8 @@ function handleDbTypeChange(val: DatabaseType) {
     formData.port = 5432
   } else if (val === 'kingbase') {
     formData.port = 54321
+  } else if (val === 'dm') {
+    formData.port = 5236
   } else if (val === 'clickhouse') {
     formData.port = 9000
     if (!formData.params) formData.params = {}
