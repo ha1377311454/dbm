@@ -2,7 +2,7 @@
 
 > 生成时间：2026-02-24
 > 项目版本：dev
-> 最后更新：2026-02-24
+> 最后更新：2026-02-24（新增存储过程和函数查询功能）
 
 ## 项目概览
 
@@ -219,6 +219,10 @@ type DatabaseAdapter interface {
     GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error)
     GetViews(db *sql.DB, database string) ([]model.TableInfo, error)
     GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error)
+    GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error)
+    GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error)
+    GetViewDefinition(db *sql.DB, database, viewName string) (string, error)
+    GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error)
 
     // SQL 执行
     Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error)
@@ -247,6 +251,10 @@ type SchemaAwareDatabase interface {
     GetTablesWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error)
     GetTableSchemaWithSchema(db *sql.DB, database, schema, table string) (*model.TableSchema, error)
     GetViewsWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error)
+    GetProceduresWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error)
+    GetFunctionsWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error)
+    GetViewDefinitionWithSchema(db *sql.DB, database, schema, viewName string) (string, error)
+    GetRoutineDefinitionWithSchema(db *sql.DB, database, schema, routineName, routineType string) (string, error)
 }
 ```
 
@@ -355,6 +363,15 @@ const (
     DatabaseKingBase   DatabaseType = "kingbase"
     DatabaseDM         DatabaseType = "dm"
 )
+
+// RoutineInfo 存储过程与函数信息
+type RoutineInfo struct {
+    Name     string `json:"name"`
+    Type     string `json:"type"` // PROCEDURE or FUNCTION
+    Database string `json:"database"`
+    Schema   string `json:"schema"`
+    Comment  string `json:"comment"`
+}
 
 // AlterActionType 修改操作类型
 type AlterActionType string
@@ -542,6 +559,10 @@ BASE_URL: /api/v1
 | GET | /connections/:id/tables                 | 获取表列表    |
 | GET | /connections/:id/tables/:table/schema  | 获取表结构    |
 | GET | /connections/:id/views                  | 获取视图列表  |
+| GET | /connections/:id/views/:view/definition | 获取视图定义 |
+| GET | /connections/:id/procedures             | 获取存储过程列表 |
+| GET | /connections/:id/functions              | 获取函数列表 |
+| GET | /connections/:id/routines/:routine/definition | 获取存储过程或函数定义 |
 
 ### SQL 执行
 

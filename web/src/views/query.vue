@@ -1,7 +1,7 @@
 <template>
   <div class="query-page">
     <el-container>
-      <el-aside width="250px">
+      <el-aside :width="asideWidth + 'px'">
         <div class="connection-selector">
           <el-select
             v-model="currentConnectionId"
@@ -54,6 +54,7 @@
           </el-tree>
         </div>
       </el-aside>
+      <div class="resizer" @mousedown="startResize"></div>
 
       <el-main>
         <div class="editor-container">
@@ -158,6 +159,9 @@ const queryStore = useQueryStore()
 const currentConnectionId = ref(route.params.id as string || '')
 const currentDatabase = ref('')
 const currentSchema = ref('')
+// 侧边栏宽度
+const asideWidth = ref(250)
+const isResizing = ref(false)
 // tree 相关的 state
 const dbTreeRef = ref<InstanceType<typeof ElTree>>()
 const treeFilterText = ref('')
@@ -187,6 +191,33 @@ const filterNode = (value: string, data: TreeNode) => {
 
 const resultSearch = ref('')
 const selectedTable = ref('')
+
+// 拖拽调整左侧栏宽度
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  e.preventDefault()
+}
+
+function handleResize(e: MouseEvent) {
+  if (!isResizing.value) return
+
+  const container = document.querySelector('.query-page') as HTMLElement
+  if (!container) return
+
+  const containerRect = container.getBoundingClientRect()
+  const newWidth = e.clientX - containerRect.left
+
+  // 限制最小和最大宽度
+  const minWidth = 180
+  const maxWidth = 500
+  const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+
+  asideWidth.value = clampedWidth
+}
+
+function stopResize() {
+  isResizing.value = false
+}
 const editorContainer = ref<HTMLElement>()
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 
@@ -261,10 +292,17 @@ onMounted(async () => {
   }
 
   initEditor()
+
+  // 添加全局事件监听用于拖拽
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
 })
 
 onBeforeUnmount(() => {
   editor?.dispose()
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
 })
 
 async function loadTreeNode(node: any, resolve: (data: TreeNode[]) => void) {
@@ -733,6 +771,21 @@ async function handleAddDataSubmit() {
 .el-aside {
   border-right: 1px solid #dcdfe6;
   padding: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.resizer {
+  width: 4px;
+  cursor: col-resize;
+  background-color: #dcdfe6;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.resizer:hover,
+.resizer:active {
+  background-color: #409eff;
 }
 
 .connection-selector {
@@ -757,6 +810,8 @@ async function handleAddDataSubmit() {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex: 1;
+  min-width: 0;
 }
 
 .editor-container {
