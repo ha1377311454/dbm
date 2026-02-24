@@ -401,7 +401,6 @@ GET    /api/v1/monitor/stats  # 监控统计
 
 ## 联系方式
 
-- Issue: [GitHub Issues](https://github.com/yourusername/dbm/issues)
 - Email: 1617802907@qq.com
 
 ---
