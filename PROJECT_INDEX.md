@@ -1,8 +1,8 @@
 # PROJECT_INDEX.md - DBM 数据库管理工具
 
-> 生成时间：2026-02-14
+> 生成时间：2026-02-24
 > 项目版本：dev
-> 最后更新：2026-02-14
+> 最后更新：2026-02-24
 
 ## 项目概览
 
@@ -30,9 +30,11 @@
 - **mattn/go-sqlite3** (v1.14.34) - SQLite 驱动
 - **ClickHouse/clickhouse-go/v2** (v2.43.0) - ClickHouse 驱动
 - **kingbase.com/gokb** (v1.0.0) - KingBase 驱动（本地模块）
+- **gitee.com/chunanyong/dm** (v1.8.22) - 达梦数据库驱动
 - **google/uuid** (v1.6.0) - UUID 生成
 - **golang.org/x/crypto** (v0.47.0) - AES-256-GCM 密码加密
 - **gopkg.in/yaml.v3** (v3.0.1) - YAML 配置解析
+- **prometheus/client_golang** (v1.23.2) - Prometheus 监控
 
 **前端核心依赖**：
 - **Vue.js** (v3.4+) - 前端框架
@@ -49,6 +51,7 @@
 - SQLite (3.x)
 - ClickHouse (22.3+)
 - KingBase (ES V8)
+- 达梦 DM (8+)
 
 ### 项目目录结构
 
@@ -57,15 +60,25 @@ dbm/
 ├── cmd/dbm/              # 程序入口
 ├── internal/
 │   ├── adapter/          # 数据库适配器（插件化设计）
+│   │   ├── config/       # 监控指标配置（YAML，embed）
 │   │   └── gokb/         # KingBase 驱动（本地模块）
 │   ├── connection/       # 连接管理
 │   ├── service/          # 业务服务层
 │   ├── export/           # 导出引擎（含类型映射）
 │   ├── model/            # 数据模型
 │   ├── server/           # HTTP 服务器
+│   ├── monitor/          # Prometheus 监控采集（含嵌入配置）
 │   └── assets/          # 嵌入的前端资源
 ├── web/                 # Vue 3 前端项目
+│   └── src/
+│       ├── api/         # API 客户端
+│       ├── components/  # Vue 组件
+│       ├── router/      # 路由配置
+│       ├── stores/      # Pinia 状态管理
+│       ├── types/       # TypeScript 类型
+│       └── views/       # 页面组件
 ├── configs/             # 配置文件示例
+│   └── type_mapping.yaml # 类型映射规则
 ├── scripts/             # 构建脚本
 ├── docs/                # 项目文档
 ├── Makefile             # 构建命令
@@ -78,43 +91,63 @@ dbm/
 
 ### 后端核心文件
 
-| 文件路径 | 功能描述 |
-|---------|---------|
-| [cmd/dbm/main.go](./cmd/dbm/main.go) | 主程序入口：命令行参数、配置加载、服务器启动 |
-| [internal/server/handler.go](./internal/server/handler.go) | HTTP 路由与处理器，定义所有 API 端点 |
-| [internal/connection/manager.go](./internal/connection/manager.go) | 连接管理器：连接池、配置持久化 |
-| [internal/connection/crypto.go](./internal/connection/crypto.go) | AES-256-GCM 密码加密 |
-| [internal/adapter/adapter.go](./internal/adapter/adapter.go) | DatabaseAdapter 接口定义 |
-| [internal/adapter/factory.go](./internal/adapter/factory.go) | 适配器工厂，创建数据库特定适配器 |
-| [internal/service/connection.go](./internal/service/connection.go) | 连接服务层 |
-| [internal/service/database.go](./internal/service/database.go) | 数据库服务层 |
+| 文件路径 | 行数 | 功能描述 |
+|---------|------|---------|
+| [cmd/dbm/main.go](./cmd/dbm/main.go) | 132 | 主程序入口：命令行参数、配置加载、服务器启动 |
+| [internal/server/handler.go](./internal/server/handler.go) | 1212 | HTTP 路由与处理器，定义所有 API 端点 |
+| [internal/connection/manager.go](./internal/connection/manager.go) | 301 | 连接管理器：连接池、配置持久化、并发安全 |
+| [internal/connection/crypto.go](./internal/connection/crypto.go) | ~100 | AES-256-GCM 密码加密 |
+| [internal/adapter/adapter.go](./internal/adapter/adapter.go) | 72 | DatabaseAdapter 接口定义 |
+| [internal/adapter/factory.go](./internal/adapter/factory.go) | ~80 | 适配器工厂模式实现 |
+| [internal/service/connection.go](./internal/service/connection.go) | 114 | 连接服务层 |
+| [internal/service/database.go](./internal/service/database.go) | 31 | 数据库服务层 |
 
 ### 数据库适配器文件
 
 | 文件路径 | 数据库类型 |
 |---------|-----------|
 | [internal/adapter/mysql.go](./internal/adapter/mysql.go) | MySQL 适配器实现 |
-| [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | PostgreSQL 适配器实现 |
+| [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | PostgreSQL 适配器实现（支持 schema） |
 | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | SQLite 适配器实现 |
 | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | ClickHouse 适配器实现 |
 | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | KingBase 适配器实现 |
+| [internal/adapter/dm.go](./internal/adapter/dm.go) | 达梦数据库适配器实现 |
 | [internal/adapter/gokb/](./internal/adapter/gokb/) | KingBase 驱动（本地模块） |
-
-### 数据模型文件
-
-| 文件路径 | 功能描述 |
-|---------|---------|
-| [internal/model/connection.go](./internal/model/connection.go) | 连接配置模型 |
-| [internal/model/database.go](./internal/model/database.go) | 数据库元数据模型 |
-| [internal/model/group.go](./internal/model/group.go) | 分组模型 |
 
 ### 导出引擎文件
 
+| 文件路径 | 行数 | 功能描述 |
+|---------|------|---------|
+| [internal/export/csv.go](./internal/export/csv.go) | 100 | CSV 导出器 |
+| [internal/export/sql.go](./internal/export/sql.go) | 234 | SQL 导出器 |
+| [internal/export/type_mapper.go](./internal/export/type_mapper.go) | 187 | 类型映射器（跨数据库迁移） |
+
+### 监控模块文件
+
+| 文件路径 | 行数 | 功能描述 |
+|---------|------|---------|
+| [internal/monitor/init.go](./internal/monitor/init.go) | 123 | 监控初始化、数据库支持注册、配置 embed |
+| [internal/monitor/collector.go](./internal/monitor/collector.go) | 241 | Prometheus Collector 实现 |
+| [internal/monitor/scraper.go](./internal/monitor/scraper.go) | 31 | 数据库指标采集接口 |
+| [internal/monitor/default_scraper.go](./internal/monitor/default_scraper.go) | 155 | 默认指标采集实现 |
+| [internal/monitor/common.go](./internal/monitor/common.go) | 139 | 监控公共函数 |
+
+#### 监控配置文件（嵌入在 monitor 模块）
+
 | 文件路径 | 功能描述 |
 |---------|---------|
-| [internal/export/csv.go](./internal/export/csv.go) | CSV 导出器 |
-| [internal/export/sql.go](./internal/export/sql.go) | SQL 导出器 |
-| [internal/export/type_mapper.go](./internal/export/type_mapper.go) | 类型映射器（跨数据库迁移） |
+| [internal/monitor/config/mysql.yaml](./internal/monitor/config/mysql.yaml) | MySQL 监控指标配置（运行时长、会话连接、最大连接数） |
+| [internal/monitor/config/pg.yaml](./internal/monitor/config/pg.yaml) | PostgreSQL 监控指标配置（运行时长、会话、连接、数据库状态、缓存命中率） |
+| [internal/monitor/config/kingbase.yaml](./internal/monitor/config/kingbase.yaml) | KingBase 监控指标配置（基于 PostgreSQL 内核，含缓存命中率） |
+| [internal/monitor/config/dm.yaml](./internal/monitor/config/dm.yaml) | 达梦数据库监控指标配置（运行时长、会话连接、最大连接数） |
+
+### 数据模型文件
+
+| 文件路径 | 行数 | 功能描述 |
+|---------|------|---------|
+| [internal/model/connection.go](./internal/model/connection.go) | 56 | 连接配置模型、DatabaseType 枚举 |
+| [internal/model/database.go](./internal/model/database.go) | 151 | 数据库元数据模型、AlterTable 请求 |
+| [internal/model/group.go](./internal/model/group.go) | 8 | 分组模型 |
 
 ### 前端核心文件
 
@@ -123,6 +156,16 @@ dbm/
 | [web/package.json](./web/package.json) | 前端依赖配置 |
 | [web/vite.config.ts](./web/vite.config.ts) | Vite 构建配置 |
 | [web/src/main.ts](./web/src/main.ts) | 前端入口 |
+| [web/src/api/index.ts](./web/src/api/index.ts) | API 客户端封装 |
+| [web/src/router/index.ts](./web/src/router/index.ts) | Vue Router 配置 |
+| [web/src/stores/connections.ts](./web/src/stores/connections.ts) | 连接状态管理 |
+| [web/src/stores/query.ts](./web/src/stores/query.ts) | 查询状态管理 |
+| [web/src/views/connections.vue](./web/src/views/connections.vue) | 连接管理页面 |
+| [web/src/views/query.vue](./web/src/views/query.vue) | SQL 查询页面 |
+| [web/src/views/tables.vue](./web/src/views/tables.vue) | 表数据浏览页面 |
+| [web/src/views/schema-editor.vue](./web/src/views/schema-editor.vue) | 表结构编辑页面 |
+| [web/src/views/export.vue](./web/src/views/export.vue) | 数据导出页面 |
+| [web/src/views/monitor.vue](./web/src/views/monitor.vue) | 监控面板页面 |
 | [internal/assets/assets.go](./internal/assets/assets.go) | 嵌入式前端资源 |
 
 ### 构建与配置文件
@@ -150,12 +193,12 @@ dbm/
 **核心文件**：
 - [adapter.go](./internal/adapter/adapter.go) - 定义 DatabaseAdapter 接口
 - [factory.go](./internal/adapter/factory.go) - 适配器工厂
-- [base.go](./internal/adapter/base.go) - 基础适配器（公共方法）
 - [mysql.go](./internal/adapter/mysql.go) - MySQL 实现
-- [postgresql.go](./internal/adapter/postgresql.go) - PostgreSQL 实现
+- [postgresql.go](./internal/adapter/postgresql.go) - PostgreSQL 实现（支持 SchemaAwareDatabase 接口）
 - [sqlite.go](./internal/adapter/sqlite.go) - SQLite 实现
 - [clickhouse.go](./internal/adapter/clickhouse.go) - ClickHouse 实现
-- [kingbase.go](./internal/adapter/kingbase.go) - KingBase 实现
+- [kingbase.go](./internal/adapter/kingbase.go) - KingBase 实现（基于 PostgreSQL）
+- [dm.go](./internal/adapter/dm.go) - 达梦数据库实现
 - [gokb/](./internal/adapter/gokb/) - KingBase 驱动（本地模块）
 
 **依赖**：
@@ -165,17 +208,20 @@ dbm/
 **对外接口**：
 ```go
 type DatabaseAdapter interface {
-    // 连接
+    // 连接管理
     Connect(config *model.ConnectionConfig) (*sql.DB, error)
+    Close(db *sql.DB) error
+    Ping(db *sql.DB) error
 
     // 元数据查询
     GetDatabases(db *sql.DB) ([]string, error)
     GetTables(db *sql.DB, database string) ([]model.TableInfo, error)
     GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error)
-    GetViews(db *sql.DB, database string) ([]model.ViewInfo, error)
+    GetViews(db *sql.DB, database string) ([]model.TableInfo, error)
+    GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error)
 
     // SQL 执行
-    Execute(db *sql.DB, query string) (*model.ExecuteResult, error)
+    Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error)
     Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error)
 
     // 数据编辑
@@ -183,16 +229,24 @@ type DatabaseAdapter interface {
     Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error
     Delete(db *sql.DB, database, table, where string) error
 
-    // 表结构修改
-    AlterTable(db *sql.DB, req *model.AlterTableRequest) error
-    RenameTable(db *sql.DB, database, oldName, newName string) error
-
     // 导出
     ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error
     ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error
 
     // 建表语句生成
     GetCreateTableSQL(db *sql.DB, database, table string) (string, error)
+
+    // 表结构修改
+    AlterTable(db *sql.DB, request *model.AlterTableRequest) error
+    RenameTable(db *sql.DB, database, oldName, newName string) error
+}
+
+// SchemaAwareDatabase 支持 schema 的数据库接口（PostgreSQL、KingBase）
+type SchemaAwareDatabase interface {
+    GetSchemas(db *sql.DB, database string) ([]string, error)
+    GetTablesWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error)
+    GetTableSchemaWithSchema(db *sql.DB, database, schema, table string) (*model.TableSchema, error)
+    GetViewsWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error)
 }
 ```
 
@@ -205,7 +259,7 @@ type DatabaseAdapter interface {
 **功能**：连接管理器，负责连接池、配置持久化、密码加密
 
 **核心文件**：
-- [manager.go](./internal/connection/manager.go) - 连接管理器实现
+- [manager.go](./internal/connection/manager.go) - 连接管理器实现（并发安全）
 - [crypto.go](./internal/connection/crypto.go) - AES-256-GCM 加密
 - [errors.go](./internal/connection/errors.go) - 错误定义
 
@@ -213,9 +267,11 @@ type DatabaseAdapter interface {
 - `sync` - 并发安全（RWMutex）
 - `encoding/json` - 配置序列化
 - `os` - 文件系统操作
+- `golang.org/x/crypto` - AES-256-GCM 加密
 
 **数据存储**：
 - 配置文件：`~/.dbm/connections.json`
+- 分组文件：`~/.dbm/groups.json`
 - 加密密钥：`~/.dbm/.key`
 
 ---
@@ -227,8 +283,8 @@ type DatabaseAdapter interface {
 **功能**：业务服务层，协调适配器和连接管理器
 
 **核心文件**：
-- [connection.go](./internal/service/connection.go) - 连接服务
-- [database.go](./internal/service/database.go) - 数据库服务
+- [connection.go](./internal/service/connection.go) - 连接服务（创建、测试、关闭）
+- [database.go](./internal/service/database.go) - 数据库服务（元数据、SQL 执行）
 
 **依赖**：
 - `internal/adapter` - 数据库适配器
@@ -244,12 +300,14 @@ type DatabaseAdapter interface {
 **功能**：HTTP 服务器，提供 RESTful API
 
 **核心文件**：
-- [handler.go](./internal/server/handler.go) - 路由与处理器
+- [handler.go](./internal/server/handler.go) - 路由与处理器、CORS 中间件、Prometheus 集成
 
 **依赖**：
 - `github.com/gin-gonic/gin` - HTTP 框架
 - `internal/service` - 业务服务层
 - `internal/connection` - 连接管理器
+- `internal/monitor` - Prometheus 监控
+- `internal/assets` - 嵌入式前端资源
 
 **API 基础路径**：`/api/v1`
 
@@ -263,13 +321,13 @@ type DatabaseAdapter interface {
 
 **核心文件**：
 - [csv.go](./internal/export/csv.go) - CSV 导出器
-- [sql.go](./internal/export/sql.go) - SQL 导出器
+- [sql.go](./internal/export/sql.go) - SQL 导出器（INSERT 语句）
 - [type_mapper.go](./internal/export/type_mapper.go) - 类型映射器（跨数据库迁移）
 
 **依赖**：
 - `internal/adapter` - 数据库适配器接口
 - `encoding/csv` - CSV 编码
-- `io` - 输出流
+- `gopkg.in/yaml.v3` - YAML 配置解析
 
 ---
 
@@ -280,9 +338,36 @@ type DatabaseAdapter interface {
 **功能**：数据模型定义
 
 **核心文件**：
-- [connection.go](./internal/model/connection.go) - 连接配置模型
-- [database.go](./internal/model/database.go) - 数据库元数据模型
+- [connection.go](./internal/model/connection.go) - 连接配置模型、DatabaseType 枚举
+- [database.go](./internal/model/database.go) - 数据库元数据模型、AlterTable 请求定义
 - [group.go](./internal/model/group.go) - 分组模型
+
+**关键类型**：
+```go
+// DatabaseType 数据库类型
+type DatabaseType string
+
+const (
+    DatabaseMySQL      DatabaseType = "mysql"
+    DatabasePostgreSQL DatabaseType = "postgresql"
+    DatabaseSQLite     DatabaseType = "sqlite"
+    DatabaseClickHouse DatabaseType = "clickhouse"
+    DatabaseKingBase   DatabaseType = "kingbase"
+    DatabaseDM         DatabaseType = "dm"
+)
+
+// AlterActionType 修改操作类型
+type AlterActionType string
+
+const (
+    AlterActionAddColumn    AlterActionType = "ADD_COLUMN"
+    AlterActionDropColumn   AlterActionType = "DROP_COLUMN"
+    AlterActionModifyColumn AlterActionType = "MODIFY_COLUMN"
+    AlterActionRenameColumn AlterActionType = "RENAME_COLUMN"
+    AlterActionAddIndex     AlterActionType = "ADD_INDEX"
+    AlterActionDropIndex    AlterActionType = "DROP_INDEX"
+)
+```
 
 **依赖**：
 - `time` - 时间戳
@@ -290,7 +375,44 @@ type DatabaseAdapter interface {
 
 ---
 
-### 7. assets 模块
+### 7. monitor 模块
+
+**位置**：[internal/monitor/](./internal/monitor/)
+
+**功能**：Prometheus 指标采集
+
+**核心文件**：
+- [init.go](./internal/monitor/init.go) - 监控初始化、数据库支持注册、配置 embed
+- [collector.go](./internal/monitor/collector.go) - Prometheus Collector 实现
+- [scraper.go](./internal/monitor/scraper.go) - 数据库指标采集接口
+- [default_scraper.go](./internal/monitor/default_scraper.go) - 默认指标采集实现
+- [common.go](./internal/monitor/common.go) - 监控公共函数
+
+**配置文件**（通过 Go embed 嵌入）：
+- [config/mysql.yaml](./internal/monitor/config/mysql.yaml) - MySQL 监控指标配置
+- [config/pg.yaml](./internal/monitor/config/pg.yaml) - PostgreSQL 监控指标配置
+- [config/kingbase.yaml](./internal/monitor/config/kingbase.yaml) - KingBase 监控指标配置
+- [config/dm.yaml](./internal/monitor/config/dm.yaml) - 达梦数据库监控指标配置
+
+**支持的数据库监控**：
+- MySQL（运行时长、会话连接、最大连接数）
+- PostgreSQL（运行时长、会话、连接、数据库状态、缓存命中率）
+- KingBase（基于 PostgreSQL 内核，含特有缓存命中率指标）
+- 达梦 DM（运行时长、会话连接、最大连接数）
+
+**添加新数据库监控**：
+1. 在 `config/` 目录添加 YAML 配置文件
+2. 在 `init.go` 的 `dbTypeConfigFile` 映射表中注册
+3. 调用 `InitAllScrapers()` 或 `InitMetricsForTypes()` 初始化
+
+**依赖**：
+- `embed` - Go 嵌入文件系统（用于 config/*.yaml）
+- `prometheus/client_golang` - Prometheus 客户端
+- `internal/adapter` - 数据库适配器
+
+---
+
+### 8. assets 模块
 
 **位置**：[internal/assets/](./internal/assets/)
 
@@ -305,7 +427,7 @@ type DatabaseAdapter interface {
 
 ---
 
-### 8. web 模块
+### 9. web 模块
 
 **位置**：[web/](./web/)
 
@@ -313,9 +435,20 @@ type DatabaseAdapter interface {
 
 **核心目录**：
 - `src/views/` - 页面组件
+  - [connections.vue](./web/src/views/connections.vue) - 连接管理页面
+  - [query.vue](./web/src/views/query.vue) - SQL 查询页面
+  - [tables.vue](./web/src/views/tables.vue) - 表数据浏览页面
+  - [schema-editor.vue](./web/src/views/schema-editor.vue) - 表结构编辑页面
+  - [export.vue](./web/src/views/export.vue) - 数据导出页面
+  - [monitor.vue](./web/src/views/monitor.vue) - 监控面板页面
+- `src/components/` - 可复用组件
+  - [TypeMappingDialog.vue](./web/src/components/TypeMappingDialog.vue) - 类型映射对话框
 - `src/stores/` - Pinia 状态管理
+  - [connections.ts](./web/src/stores/connections.ts) - 连接状态
+  - [query.ts](./web/src/stores/query.ts) - 查询状态
 - `src/router/` - Vue Router 配置
 - `src/api/` - API 客户端
+- `src/types/` - TypeScript 类型定义
 
 **依赖**：
 - Vue 3.4+
@@ -330,43 +463,51 @@ type DatabaseAdapter interface {
 ## 依赖关系图
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         cmd/dbm/main.go                      │
-│                    (程序入口、服务器启动)                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                      internal/server                           │
-│                   (HTTP 服务器、API 路由)                      │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ↓
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ↓                     ↓                     ↓
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│ internal/service│   │ internal/connection│  │ internal/adapter │
-│  (业务服务层)  │   │   (连接管理器)   │   │ (数据库适配器)  │
-└─────────────────┘   └─────────────────┘   └─────────────────┘
-        │                     │                     │
-        └─────────────────────┼─────────────────────┘
-                              │
-                              ↓
-                    ┌─────────────────┐
-                    │ internal/model  │
-                    │  (数据模型)     │
-                    └─────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│                    internal/export                              │
-│                   (导出引擎：CSV、SQL)                          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ↓
-                    ┌─────────────────┐
-                    │ internal/adapter│
-                    └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              cmd/dbm/main.go                           │
+│                    (程序入口、配置初始化、密钥生成)                     │
+└─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         internal/server/handler.go                     │
+│                   (HTTP 服务器、Gin 路由、中间件、CORS)                │
+└─────────────────────────────────────────────────────────────────────────┘
+                    │                           │
+        ┌───────────┴───────────┐   ┌───────────┴───────────┐
+        ↓                       ↓   ↓                       ↓
+┌──────────────────┐   ┌──────────────────┐   ┌─────────────────────┐
+│ internal/service │   │ internal/monitor │   │ internal/assets/    │
+│                  │   │                  │   │ (前端资源 embed)    │
+├──────────────────┤   ├──────────────────┤   └─────────────────────┘
+│ connection.go    │   │ collector.go     │
+│ database.go      │   │ scraper.go       │
+└──────────────────┘   └──────────────────┘
+        │                       │
+        ↓                       │
+┌───────────────────┐           │
+│ internal/adapter/ │◄──────────┘
+│                   │
+├───────────────────┤     ┌─────────────────────┐
+│ factory.go        │────►│ internal/connection/│
+├───────────────────┤     │                     │
+│ mysql.go          │     │ manager.go          │
+│ postgresql.go     │     │ crypto.go           │
+│ sqlite.go         │     └─────────────────────┘
+│ clickhouse.go     │              │
+│ kingbase.go       │              ↓
+│ dm.go             │     ┌─────────────────────┐
+└───────────────────┘     │ internal/model/     │
+         │                 │                     │
+         │                 │ connection.go      │
+         ↓                 │ database.go         │
+┌──────────────────┐       │ group.go            │
+│ internal/export/ │       └─────────────────────┘
+│                  │
+│ csv.go           │
+│ sql.go           │
+│ type_mapper.go   │
+└──────────────────┘
 ```
 
 ---
@@ -389,14 +530,15 @@ BASE_URL: /api/v1
 | DELETE | /connections/:id       | 删除连接            |
 | POST | /connections/:id/connect  | 建立连接            |
 | POST | /connections/:id/close    | 关闭连接            |
-| POST | /connections/:id/test     | 测试连接            |
 | POST | /connections/test         | 测试连接配置（未保存） |
+| POST | /connections/:id/test     | 测试已保存连接      |
 
 ### 数据库元数据
 
 | 方法  | 路径                               | 描述                   |
 |------|-----------------------------------|----------------------|
 | GET | /connections/:id/databases              | 获取数据库列表 |
+| GET | /connections/:id/schemas                | 获取 schema 列表（PostgreSQL、KingBase） |
 | GET | /connections/:id/tables                 | 获取表列表    |
 | GET | /connections/:id/tables/:table/schema  | 获取表结构    |
 | GET | /connections/:id/views                  | 获取视图列表  |
@@ -422,6 +564,37 @@ BASE_URL: /api/v1
 |------|-----------------------------------|----------------------|
 | POST | /connections/:id/tables/:table/alter  | 修改表结构 |
 | POST | /connections/:id/tables/:table/rename | 重命名表   |
+
+**修改表结构请求示例**：
+```json
+{
+  "database": "test_db",
+  "table": "users",
+  "actions": [
+    {
+      "type": "ADD_COLUMN",
+      "column": {
+        "name": "email",
+        "type": "VARCHAR",
+        "length": 255,
+        "nullable": false
+      }
+    },
+    {
+      "type": "DROP_COLUMN",
+      "oldName": "unused_column"
+    },
+    {
+      "type": "ADD_INDEX",
+      "index": {
+        "name": "idx_email",
+        "columns": ["email"],
+        "unique": true
+      }
+    }
+  ]
+}
+```
 
 ### 导出
 
@@ -456,6 +629,7 @@ BASE_URL: /api/v1
 - Go 1.24+
 - Node.js 18+
 - npm 或 yarn
+- Make (可选)
 
 ### 快速启动
 
@@ -493,6 +667,13 @@ npm run dev    # 开发服务器
 npm run build  # 生产构建
 ```
 
+### 调试运行
+
+```bash
+# 停止旧进程、编译并运行服务器（日志输出到 server.log）
+lsof -t -i:2048 | xargs kill || true && make build && ./dist/dbm > server.log 2>&1 &
+```
+
 ### 服务器启动参数
 
 ```bash
@@ -516,9 +697,10 @@ npm run build  # 生产构建
 | 功能/需求 | 位置 | 文件 |
 |----------|------|------|
 | 添加新数据库支持 | [internal/adapter/](./internal/adapter/) | 创建新适配器文件，实现 DatabaseAdapter 接口 |
+| 添加数据库监控支持 | [internal/monitor/](./internal/monitor/) | 在 config/ 添加 YAML 配置，在 init.go 注册 |
 | 修改 API 路由 | [internal/server/handler.go](./internal/server/handler.go) | setupRoutes() 方法 |
 | 修改连接配置模型 | [internal/model/connection.go](./internal/model/connection.go) | ConnectionConfig 结构体 |
-| 修改密码加密方式 | [internal/connection/crypto.go](./internal/connection/crypto.go) | EncryptPassword/DecryptPassword 函数 |
+| 修改密码加密方式 | [internal/connection/crypto.go](./internal/connection/crypto.go) | Encryptor 结构体 |
 | 添加新的导出格式 | [internal/export/](./internal/export/) | 创建新的导出器文件 |
 | 修改类型映射规则 | [configs/type_mapping.yaml](./configs/type_mapping.yaml) | YAML 配置文件 |
 | 修改表结构修改逻辑 | [internal/adapter/](./internal/adapter/) | 各适配器的 AlterTable 方法 |
@@ -530,24 +712,26 @@ npm run build  # 生产构建
 
 ### 数据库适配器实现位置
 
-| 数据库类型 | 适配器文件 | 核心方法 |
-|-----------|-----------|---------|
-| MySQL | [internal/adapter/mysql.go](./internal/adapter/mysql.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
-| PostgreSQL | [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
-| SQLite | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
-| ClickHouse | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
-| KingBase | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | Connect, GetDatabases, GetTables, Query, Execute, AlterTable |
+| 数据库类型 | 适配器文件 | 驱动包 | 特殊说明 |
+|-----------|-----------|--------|---------|
+| MySQL | [internal/adapter/mysql.go](./internal/adapter/mysql.go) | go-sql-driver/mysql | 完整支持 |
+| PostgreSQL | [internal/adapter/postgresql.go](./internal/adapter/postgresql.go) | lib/pq | 支持 SchemaAwareDatabase 接口 |
+| SQLite | [internal/adapter/sqlite.go](./internal/adapter/sqlite.go) | mattn/go-sqlite3 | 部分功能受限（如 DROP COLUMN） |
+| ClickHouse | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | ClickHouse/clickhouse-go/v2 | 不支持传统索引 |
+| KingBase | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | kingbase.com/gokb (本地) | 基于 PostgreSQL 内核 |
+| 达梦 DM | [internal/adapter/dm.go](./internal/adapter/dm.go) | gitee.com/chunanyong/dm | 语法类似 Oracle |
 
 ### 常见任务快速定位
 
 | 任务 | 位置 | 说明 |
 |------|------|------|
 | 修改默认端口 | [cmd/dbm/main.go:26](./cmd/dbm/main.go#L26) | 修改 flag.Int("port", 2048, ...) |
-| 添加新的 API 端点 | [internal/server/handler.go:54](./internal/server/handler.go#L54) | 在 setupRoutes() 中添加路由 |
+| 添加新的 API 端点 | [internal/server/handler.go:82](./internal/server/handler.go#L82) | 在 setupRoutes() 中添加路由 |
 | 修改连接池配置 | [internal/connection/manager.go](./internal/connection/manager.go) | 修改 SetMaxOpenConns 等参数 |
-| 修改 CORS 配置 | [internal/server/handler.go:886](./internal/server/handler.go#L886) | corsMiddleware() 函数 |
-| 修改响应格式 | [internal/server/handler.go:746](./internal/server/handler.go#L746) | APIResponse 结构体 |
+| 修改 CORS 配置 | [internal/server/handler.go](./internal/server/handler.go) | corsMiddleware() 函数 |
+| 修改响应格式 | [internal/server/handler.go](./internal/server/handler.go) | APIResponse 结构体 |
 | 前端开发服务器配置 | [web/vite.config.ts](./web/vite.config.ts) | Vite 配置文件 |
+| 注册新数据库监控 | [internal/monitor/init.go](./internal/monitor/init.go) | dbTypeConfigFile 映射表 |
 
 ---
 
@@ -558,6 +742,7 @@ npm run build  # 生产构建
 3. **适配器模式**：所有数据库操作都应通过适配器接口进行
 4. **配置持久化**：连接配置保存在 `~/.dbm/connections.json`
 5. **并发安全**：`connection.Manager` 已使用 `sync.RWMutex`，调用时无需额外加锁
+6. **类型映射**：跨数据库导出时，使用 `configs/type_mapping.yaml` 配置类型转换规则
 
 ---
 
@@ -566,9 +751,72 @@ npm run build  # 生产构建
 ### 添加新数据库支持
 
 1. 在 `internal/model/connection.go` 添加新的数据库类型常量
+   ```go
+   const (
+       // ...
+       DatabaseNewDB DatabaseType = "newdb"
+   )
+   ```
+
 2. 在 `internal/adapter/` 创建新的适配器文件，实现 `DatabaseAdapter` 接口
+   ```go
+   type NewDBAdapter struct {
+       BaseAdapter
+   }
+   ```
+
 3. 在 `internal/adapter/factory.go` 的 `CreateAdapter` 方法中添加新数据库的 case
+   ```go
+   case model.DatabaseNewDB:
+       return &NewDBAdapter{BaseAdapter: *NewBaseAdapter()}, nil
+   ```
+
 4. 在 `SupportedTypes()` 方法中添加新类型
+
+5. 如需本地驱动，使用 `replace` 指令（参考 KingBase）
+
+### 添加数据库监控支持
+
+1. 在 `internal/monitor/config/` 添加对应数据库的 YAML 配置文件
+   ```yaml
+   # 示例：newdb.yaml
+   metrics:
+     - context: uptime
+       labels: ["version"]
+       metricsdesc:
+         seconds: "Gauge metric with uptime of database in seconds."
+       metricstype:
+         seconds: gauge
+       request: "SELECT VERSION() AS version, UPTIME AS seconds"
+   ```
+
+2. 在 `internal/monitor/init.go` 的 `dbTypeConfigFile` 映射表中注册
+   ```go
+   var dbTypeConfigFile = map[string]string{
+       // ...
+       "newdb": "newdb.yaml",
+   }
+   ```
+
+3. 使用默认采集器（自动解析 YAML 配置）
+   ```go
+   // 方式 1：初始化所有数据库监控
+   monitor.InitAllScrapers(collector)
+
+   // 方式 2：按需初始化
+   monitor.InitMetricsForTypes(collector, []string{"newdb"})
+   ```
+
+4. 如需自定义采集逻辑，实现 `Scraper` 接口：
+   ```go
+   type CustomScraper struct {
+       db *sql.DB
+   }
+
+   func (s *CustomScraper) Scrape(ctx context.Context) ([]Metric, error) {
+       // 自定义采集逻辑
+   }
+   ```
 
 ### 添加新的导出格式
 
@@ -604,9 +852,11 @@ npm run build  # 生产构建
 | mattn/go-sqlite3                   | 1.14.34 | SQLite 驱动     |
 | ClickHouse/clickhouse-go/v2        | 2.43.0  | ClickHouse 驱动 |
 | kingbase.com/gokb                   | 1.0.0   | KingBase 驱动（本地模块） |
+| gitee.com/chunanyong/dm            | 1.8.22  | 达梦数据库驱动   |
 | google/uuid                        | 1.6.0   | UUID 生成       |
 | golang.org/x/crypto                | 0.47.0  | AES-256-GCM 加密 |
 | gopkg.in/yaml.v3                    | 3.0.1   | YAML 配置解析   |
+| prometheus/client_golang           | 1.23.2  | Prometheus 监控  |
 
 ### 前端主要依赖
 
@@ -618,9 +868,51 @@ npm run build  # 生产构建
 | Pinia            | 2.1+  | 状态管理    |
 | Axios            | 1.6+  | HTTP 客户端 |
 | ECharts          | 5.5+  | 图表组件    |
+| sql-formatter    | 15.7+ | SQL 格式化  |
 
 ---
 
-## 许可证
+## 配置文件位置
 
-MIT License
+| 平台 | 配置路径 |
+|------|----------|
+| Linux | `~/.dbm/` |
+| macOS | `~/.dbm/` |
+| Windows | `%APPDATA%/dbm/` |
+
+### 存储文件
+
+- `connections.json`：连接配置（密码已加密）
+- `groups.json`：分组配置
+- `.key`：密码加密密钥
+
+---
+
+## 相关文档
+
+| 文档 | 路径 | 描述 |
+|------|------|------|
+| CLAUDE.md | [./CLAUDE.md](./CLAUDE.md) | AI 开发指南 |
+| README.md | [./README.md](./README.md) | 项目说明文档 |
+| DESIGN.md | [./docs/DESIGN.md](./docs/DESIGN.md) | 设计文档 |
+| CHANGELOG.md | [./docs/CHANGELOG.md](./docs/CHANGELOG.md) | 变更日志 |
+
+---
+
+## 数据库特性差异
+
+| 操作 | MySQL | PostgreSQL | SQLite | ClickHouse | KingBase | DM |
+|------|-------|------------|--------|------------|----------|-----|
+| 添加列 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 删除列 | ✅ | ✅ | ❌ 需重建表 | ✅ | ✅ | ✅ |
+| 修改列 | ✅ | ✅ 需多条语句 | ❌ 需重建表 | ✅ | ✅ 需多条语句 | ✅ |
+| 重命名列 | ✅ | ✅ | ✅ (3.25.0+) | ✅ | ✅ | ✅ |
+| 添加索引 | ✅ | ✅ | ✅ | ❌ 使用 ORDER BY | ✅ | ✅ |
+| 删除索引 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| 重命名表 | ✅ | ✅ | ✅ | ✅ (非复制表) | ✅ | ✅ |
+| Schema 支持 | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ |
+
+---
+
+**文档生成工具**: /project-index skill
+**最后更新**: 2026-02-24
