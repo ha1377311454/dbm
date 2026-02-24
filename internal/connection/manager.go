@@ -11,12 +11,13 @@ import (
 
 // Manager 连接管理器
 type Manager struct {
-	mu          sync.RWMutex
-	connections map[string]*sql.DB // key: connectionID
-	configs     map[string]*model.ConnectionConfig
-	groups      map[string]*model.Group // key: groupID
-	crypto      *Encryptor
-	dataPath    string
+	mu                 sync.RWMutex
+	connections        map[string]*sql.DB // key: connectionID
+	configs            map[string]*model.ConnectionConfig
+	decryptedPasswords map[string]string       // 缓存解密后的密码，避免频繁调用昂贵的 Argon2
+	groups             map[string]*model.Group // key: groupID
+	crypto             *Encryptor
+	dataPath           string
 }
 
 // NewManager 创建连接管理器
@@ -27,11 +28,12 @@ func NewManager(dataPath, encryptionKey string) (*Manager, error) {
 	}
 
 	m := &Manager{
-		connections: make(map[string]*sql.DB),
-		configs:     make(map[string]*model.ConnectionConfig),
-		groups:      make(map[string]*model.Group),
-		crypto:      crypto,
-		dataPath:    dataPath,
+		connections:        make(map[string]*sql.DB),
+		configs:            make(map[string]*model.ConnectionConfig),
+		decryptedPasswords: make(map[string]string),
+		groups:             make(map[string]*model.Group),
+		crypto:             crypto,
+		dataPath:           dataPath,
 	}
 
 	// 加载配置
@@ -64,6 +66,7 @@ func (m *Manager) AddConnection(config *model.ConnectionConfig) error {
 	configCopy.Password = encryptedPassword
 
 	m.configs[configCopy.ID] = &configCopy
+	m.decryptedPasswords[configCopy.ID] = config.Password // 缓存原始明文密码
 
 	// Save to file
 	return m.saveConfigs()
@@ -81,6 +84,7 @@ func (m *Manager) RemoveConnection(id string) error {
 	}
 
 	delete(m.configs, id)
+	delete(m.decryptedPasswords, id)
 
 	// Save to file
 	return m.saveConfigs()
@@ -141,12 +145,21 @@ func (m *Manager) GetConfig(id string) (*model.ConnectionConfig, error) {
 	if !exists {
 		return nil, ErrConnectionNotFound
 	}
+	// 先检查缓存
+	if decrypted, exists := m.decryptedPasswords[id]; exists {
+		configCopy := *config
+		configCopy.Password = decrypted
+		return &configCopy, nil
+	}
 
 	// 解密密码
 	decryptedPassword, err := m.crypto.Decrypt(config.Password)
 	if err != nil {
 		return nil, err
 	}
+
+	// 存入缓存
+	m.decryptedPasswords[id] = decryptedPassword
 
 	// 返回配置的副本
 	configCopy := *config
