@@ -56,7 +56,12 @@
               <el-select
                 v-model="exportConfig.selectedTables"
                 multiple
-                placeholder="选择要导出的表"
+                filterable
+                reserve-keyword
+                collapse-tags
+                collapse-tags-tooltip
+                :max-collapse-tags="3"
+                placeholder="选择要导出的表（支持模糊搜索）"
                 style="width: 100%"
               >
                 <el-option
