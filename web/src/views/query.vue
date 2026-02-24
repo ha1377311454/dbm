@@ -85,12 +85,21 @@
                 clearable
               />
               <span class="result-info">
+                <span v-if="queryStore.result.message" style="margin-right: 15px; color: #409EFF; font-weight: bold;">
+                  {{ queryStore.result.message }}
+                </span>
                 耗时: {{ queryStore.result.timeCost }}ms |
-                行数: {{ filteredResults.length }} / {{ queryStore.result.total }}
+                <template v-if="queryStore.result.columns && queryStore.result.columns.length > 0">
+                  行数: {{ filteredResults.length }} / {{ queryStore.result.total }}
+                </template>
+                <template v-else>
+                  影响行数: {{ queryStore.result.rowsAffected }}
+                </template>
               </span>
             </div>
           </div>
           <el-table
+            v-if="queryStore.result.columns && queryStore.result.columns.length > 0"
             :data="filteredResults"
             :default-sort="{ prop: 'id', order: 'ascending' }"
             stripe
@@ -106,6 +115,9 @@
               show-overflow-tooltip
             />
           </el-table>
+          <div v-else class="empty-result">
+            <el-empty :description="queryStore.result.message || '执行成功，无返回数据'" />
+          </div>
         </div>
       </el-main>
     </el-container>
@@ -116,7 +128,7 @@
       title="新增数据"
       width="600px"
     >
-      <el-form :model="addDataForm" label-width="100px" ref="addDataFormRef">
+      <el-form :model="addDataForm" label-width="100px">
         <template v-for="col in tableColumns" :key="col?.name">
           <el-form-item
             v-if="col && col.name"
@@ -146,7 +158,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useQueryStore } from '@/stores/query'
 import * as monaco from 'monaco-editor'
 import { format } from 'sql-formatter'
-import { VideoPlay, Delete, Download, Document, MagicStick, Search, Plus, Coin, Folder, FolderOpened, Collection, Reading, Setting, Operation } from '@element-plus/icons-vue'
+import { VideoPlay, Delete, Download, Document, MagicStick, Search, Plus, Coin, Folder, FolderOpened, Reading, Setting, Operation } from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import type { ElTree } from 'element-plus'
 import { api } from '@/api'
@@ -224,7 +236,6 @@ let editor: monaco.editor.IStandaloneCodeEditor | null = null
 // 新增数据相关状态
 const addDataDialogVisible = ref(false)
 const addDataForm = ref<Record<string, any>>({})
-const addDataFormRef = ref()
 const submittingData = ref(false)
 const tableColumns = ref<any[]>([])
 

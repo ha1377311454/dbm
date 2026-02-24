@@ -371,6 +371,26 @@ func (a *KingBaseAdapter) Execute(db *sql.DB, query string, args ...interface{})
 func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
 	start := time.Now()
 
+	trimQuery := strings.TrimSpace(strings.ToUpper(query))
+	isQuery := strings.HasPrefix(trimQuery, "SELECT") ||
+		strings.HasPrefix(trimQuery, "SHOW") ||
+		strings.HasPrefix(trimQuery, "DESC") ||
+		strings.HasPrefix(trimQuery, "EXPLAIN") ||
+		strings.HasPrefix(trimQuery, "WITH")
+
+	if !isQuery {
+		result, err := db.Exec(query)
+		if err != nil {
+			return nil, err
+		}
+		rowsAffected, _ := result.RowsAffected()
+		return &model.QueryResult{
+			RowsAffected: rowsAffected,
+			Message:      "执行成功",
+			TimeCost:     time.Since(start),
+		}, nil
+	}
+
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -412,6 +432,7 @@ func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptio
 		Columns:  columns,
 		Rows:     rowData,
 		Total:    int64(len(rowData)),
+		Message:  "查询成功",
 		TimeCost: time.Since(start),
 	}, nil
 }

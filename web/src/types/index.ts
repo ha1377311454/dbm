@@ -80,6 +80,8 @@ export interface QueryResult {
   columns: string[]
   rows: Record<string, any>[]
   total: number
+  rowsAffected: number
+  message: string
   timeCost: number
 }
 

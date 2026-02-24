@@ -69,10 +69,12 @@ type ExecuteResult struct {
 
 // QueryResult 查询结果
 type QueryResult struct {
-	Columns  []string                 `json:"columns"`
-	Rows     []map[string]interface{} `json:"rows"`
-	Total    int64                    `json:"total"`
-	TimeCost time.Duration            `json:"timeCost"`
+	Columns      []string                 `json:"columns"`
+	Rows         []map[string]interface{} `json:"rows"`
+	Total        int64                    `json:"total"`
+	RowsAffected int64                    `json:"rowsAffected"`
+	Message      string                   `json:"message"`
+	TimeCost     time.Duration            `json:"timeCost"`
 }
 
 // QueryOptions 分页查询选项
