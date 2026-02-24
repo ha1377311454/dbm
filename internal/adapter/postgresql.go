@@ -306,6 +306,123 @@ func (a *PostgreSQLAdapter) GetViewsWithSchema(db *sql.DB, database, schema stri
 	return views, nil
 }
 
+// GetViewDefinition 获取视图定义
+func (a *PostgreSQLAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	return a.GetViewDefinitionWithSchema(db, database, "public", viewName)
+}
+
+// GetViewDefinitionWithSchema 获取指定 schema 下的视图定义
+func (a *PostgreSQLAdapter) GetViewDefinitionWithSchema(db *sql.DB, database, schema, viewName string) (string, error) {
+	var definition string
+	query := `
+		SELECT pg_get_viewdef(c.oid, true)
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relname = $1 AND n.nspname = $2
+	`
+
+	row := db.QueryRow(query, viewName, schema)
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+
+	return definition, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义
+func (a *PostgreSQLAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	return a.GetRoutineDefinitionWithSchema(db, database, "public", routineName, routineType)
+}
+
+// GetRoutineDefinitionWithSchema 获取指定 schema 下的存储过程或函数定义
+func (a *PostgreSQLAdapter) GetRoutineDefinitionWithSchema(db *sql.DB, database, schema, routineName, routineType string) (string, error) {
+	var definition string
+	query := `
+		SELECT pg_get_functiondef(p.oid)
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE p.proname = $1 AND n.nspname = $2
+		LIMIT 1
+	`
+
+	row := db.QueryRow(query, routineName, schema)
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+
+	return definition, nil
+}
+
+// GetProcedures 获取存储过程列表
+func (a *PostgreSQLAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return a.GetProceduresWithSchema(db, database, "public")
+}
+
+// GetProceduresWithSchema 获取指定 schema 下的存储过程列表
+func (a *PostgreSQLAdapter) GetProceduresWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT routine_name
+		FROM information_schema.routines
+		WHERE routine_type = 'PROCEDURE' AND routine_schema = $1
+		ORDER BY routine_name
+	`
+
+	rows, err := db.Query(query, schema)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var procedures []model.RoutineInfo
+	for rows.Next() {
+		var p model.RoutineInfo
+		if err := rows.Scan(&p.Name); err != nil {
+			return nil, err
+		}
+		p.Database = database
+		p.Schema = schema
+		p.Type = "PROCEDURE"
+		procedures = append(procedures, p)
+	}
+
+	return procedures, nil
+}
+
+// GetFunctions 获取函数列表
+func (a *PostgreSQLAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return a.GetFunctionsWithSchema(db, database, "public")
+}
+
+// GetFunctionsWithSchema 获取指定 schema 下的函数列表
+func (a *PostgreSQLAdapter) GetFunctionsWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT routine_name
+		FROM information_schema.routines
+		WHERE routine_type = 'FUNCTION' AND routine_schema = $1
+		ORDER BY routine_name
+	`
+
+	rows, err := db.Query(query, schema)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var functions []model.RoutineInfo
+	for rows.Next() {
+		var f model.RoutineInfo
+		if err := rows.Scan(&f.Name); err != nil {
+			return nil, err
+		}
+		f.Database = database
+		f.Schema = schema
+		f.Type = "FUNCTION"
+		functions = append(functions, f)
+	}
+
+	return functions, nil
+}
+
 // GetIndexes 获取索引列表
 func (a *PostgreSQLAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)

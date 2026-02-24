@@ -13,6 +13,15 @@ type TableInfo struct {
 	Comment   string `json:"comment"`
 }
 
+// RoutineInfo 存储过程与函数信息
+type RoutineInfo struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"` // PROCEDURE or FUNCTION
+	Database string `json:"database"`
+	Schema   string `json:"schema"`
+	Comment  string `json:"comment"`
+}
+
 // TableSchema 表结构
 type TableSchema struct {
 	Database    string           `json:"database"`

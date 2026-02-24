@@ -17,56 +17,41 @@
               :value="conn.id"
             />
           </el-select>
-          <el-select
-            v-model="currentDatabase"
-            placeholder="选择数据库"
-            filterable
-            @change="handleDatabaseChange"
-            style="width: 100%; margin-bottom: 10px"
-            v-if="currentConnectionId"
-          >
-            <el-option
-              v-for="db in queryStore.databases"
-              :key="db"
-              :label="db"
-              :value="db"
-            />
-          </el-select>
-          <el-select
-            v-model="currentSchema"
-            placeholder="选择 Schema"
-            filterable
-            @change="handleSchemaChange"
-            style="width: 100%; margin-bottom: 10px"
-            v-if="currentDatabase && queryStore.schemas.length > 0"
-            clearable
-          >
-            <el-option
-              v-for="schema in queryStore.schemas"
-              :key="schema"
-              :label="schema"
-              :value="schema"
-            />
-          </el-select>
           <el-input
-            v-model="tableFilter"
-            placeholder="搜索表..."
+            v-model="treeFilterText"
+            placeholder="搜索节点..."
             size="small"
-            style="margin-top: 10px"
+            style="margin-bottom: 10px"
             clearable
           />
         </div>
-        <el-divider />
-        <div class="tables-list">
-          <div
-            v-for="table in filteredTables"
-            :key="table.name"
-            class="table-item"
-            @click="handleTableClick(table.name)"
+        <el-divider style="margin: 10px 0;" />
+        <div class="tree-container">
+          <el-tree
+            v-if="currentConnectionId"
+            :key="currentConnectionId"
+            ref="dbTreeRef"
+            :props="treeProps"
+            :load="loadTreeNode"
+            lazy
+            :filter-node-method="filterNode"
+            @node-click="handleNodeClick"
+            highlight-current
+            node-key="id"
           >
-            <el-icon><Document /></el-icon>
-            <span>{{ table.name }}</span>
-          </div>
+            <template #default="{ node, data }">
+              <span class="custom-tree-node" style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                <el-icon v-if="data.type === 'database'" color="#409EFC"><Coin /></el-icon>
+                <el-icon v-else-if="data.type === 'schema'" color="#E6A23C"><Folder /></el-icon>
+                <el-icon v-else-if="data.type === 'folder'" color="#909399"><FolderOpened /></el-icon>
+                <el-icon v-else-if="data.type === 'view'" color="#67C23A"><Reading /></el-icon>
+                <el-icon v-else-if="data.type === 'procedure'" color="#F56C6C"><Setting /></el-icon>
+                <el-icon v-else-if="data.type === 'function'" color="#E6A23C"><Operation /></el-icon>
+                <el-icon v-else><Document /></el-icon>
+                <span class="tree-node-label" :title="node.label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ node.label }}</span>
+              </span>
+            </template>
+          </el-tree>
         </div>
       </el-aside>
 
@@ -160,26 +145,46 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useQueryStore } from '@/stores/query'
 import * as monaco from 'monaco-editor'
 import { format } from 'sql-formatter'
-import { VideoPlay, Delete, Download, Document, MagicStick, Search, Plus } from '@element-plus/icons-vue'
+import { VideoPlay, Delete, Download, Document, MagicStick, Search, Plus, Coin, Folder, FolderOpened, Collection, Reading, Setting, Operation } from '@element-plus/icons-vue'
 import { ElMessage, ElNotification } from 'element-plus'
+import type { ElTree } from 'element-plus'
+import { api } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const connectionsStore = useConnectionsStore()
 const queryStore = useQueryStore()
 
-const filteredTables = computed(() => {
-  // 确保 tables 是有效数组
-  if (!Array.isArray(queryStore.tables)) return []
-
-  if (!tableFilter.value) return queryStore.tables
-  return queryStore.tables.filter(t => t.name && t.name.toLowerCase().includes(tableFilter.value.toLowerCase()))
-})
-
 const currentConnectionId = ref(route.params.id as string || '')
 const currentDatabase = ref('')
 const currentSchema = ref('')
-const tableFilter = ref('')
+// tree 相关的 state
+const dbTreeRef = ref<InstanceType<typeof ElTree>>()
+const treeFilterText = ref('')
+const treeProps = {
+  label: 'label',
+  isLeaf: 'isLeaf'
+}
+
+interface TreeNode {
+  id: string
+  label: string
+  type: 'database' | 'schema' | 'table' | 'view' | 'folder' | 'procedure' | 'function'
+  parentType?: 'database' | 'schema'
+  database?: string
+  schema?: string
+  isLeaf?: boolean
+}
+
+watch(treeFilterText, (val) => {
+  dbTreeRef.value?.filter(val)
+})
+
+const filterNode = (value: string, data: TreeNode) => {
+  if (!value) return true
+  return data.label.toLowerCase().includes(value.toLowerCase())
+}
+
 const resultSearch = ref('')
 const selectedTable = ref('')
 const editorContainer = ref<HTMLElement>()
@@ -262,6 +267,180 @@ onBeforeUnmount(() => {
   editor?.dispose()
 })
 
+async function loadTreeNode(node: any, resolve: (data: TreeNode[]) => void) {
+  if (!currentConnectionId.value) {
+    return resolve([])
+  }
+
+  if (node.level === 0) {
+    try {
+      const res = await api.getDatabases(currentConnectionId.value)
+      if (res.code === 0 && res.data) {
+        queryStore.databases = res.data
+        const nodes: TreeNode[] = res.data.map(db => ({
+          id: `db_${db}`,
+          label: db,
+          type: 'database',
+          database: db,
+          isLeaf: false
+        }))
+        resolve(nodes)
+      } else {
+        resolve([])
+      }
+    } catch (e) {
+      resolve([])
+    }
+    return
+  }
+
+  const data = node.data as TreeNode
+  if (data.type === 'database') {
+    try {
+      const db = data.database!
+      // 先尝试加载 schemas
+      const schemaRes = await api.getSchemas(currentConnectionId.value, db)
+      if (schemaRes.code === 0 && schemaRes.data && schemaRes.data.length > 0) {
+        queryStore.schemas = schemaRes.data
+        const nodes: TreeNode[] = schemaRes.data.map(schema => ({
+          id: `schema_${db}_${schema}`,
+          label: schema,
+          type: 'schema',
+          database: db,
+          schema: schema,
+          isLeaf: false
+        }))
+        resolve(nodes)
+      } else {
+        // 无 schema 则直接返回虚拟目录节点 (Tables, Views, Procedures, Functions)
+        const folderNodes: TreeNode[] = [
+          { id: `folder_tables_${db}`, label: 'Tables', type: 'folder', parentType: 'database', database: db, isLeaf: false },
+          { id: `folder_views_${db}`, label: 'Views', type: 'folder', parentType: 'database', database: db, isLeaf: false },
+          { id: `folder_procedures_${db}`, label: 'Procedures', type: 'folder', parentType: 'database', database: db, isLeaf: false },
+          { id: `folder_functions_${db}`, label: 'Functions', type: 'folder', parentType: 'database', database: db, isLeaf: false }
+        ]
+        resolve(folderNodes)
+      }
+    } catch (e) {
+      resolve([])
+    }
+    return
+  }
+
+  if (data.type === 'schema') {
+    try {
+      const db = data.database!
+      const schema = data.schema!
+      // 有 schema 下同样返回虚拟目录节点
+      const folderNodes: TreeNode[] = [
+        { id: `folder_tables_${db}_${schema}`, label: 'Tables', type: 'folder', parentType: 'schema', database: db, schema: schema, isLeaf: false },
+        { id: `folder_views_${db}_${schema}`, label: 'Views', type: 'folder', parentType: 'schema', database: db, schema: schema, isLeaf: false },
+        { id: `folder_procedures_${db}_${schema}`, label: 'Procedures', type: 'folder', parentType: 'schema', database: db, schema: schema, isLeaf: false },
+        { id: `folder_functions_${db}_${schema}`, label: 'Functions', type: 'folder', parentType: 'schema', database: db, schema: schema, isLeaf: false }
+      ]
+      resolve(folderNodes)
+    } catch (e) {
+      resolve([])
+    }
+    return
+  }
+
+  if (data.type === 'folder') {
+    try {
+      const db = data.database!
+      const schema = data.schema
+
+      if (data.label === 'Tables') {
+        const tableRes = await api.getTables(currentConnectionId.value, db, schema)
+        if (tableRes.code === 0 && tableRes.data) {
+          queryStore.tables = tableRes.data
+          const nodes: TreeNode[] = tableRes.data.map(t => ({
+            id: `table_${db}_${schema || ''}_${t.name}`,
+            label: t.name,
+            type: 'table',
+            database: db,
+            schema: schema,
+            isLeaf: true
+          }))
+          resolve(nodes)
+        } else {
+          resolve([])
+        }
+      } else if (data.label === 'Views') {
+        const viewRes = await api.getViews(currentConnectionId.value, db, schema)
+        if (viewRes.code === 0 && viewRes.data) {
+          const nodes: TreeNode[] = viewRes.data.map(v => ({
+            id: `view_${db}_${schema || ''}_${v.name}`,
+            label: v.name,
+            type: 'view',
+            database: db,
+            schema: schema,
+            isLeaf: true
+          }))
+          resolve(nodes)
+        } else {
+          resolve([])
+        }
+      } else if (data.label === 'Procedures') {
+        const procRes = await api.getProcedures(currentConnectionId.value, db, schema)
+        if (procRes.code === 0 && procRes.data) {
+          const nodes: TreeNode[] = procRes.data.map(p => ({
+            id: `proc_${db}_${schema || ''}_${p.name}`,
+            label: p.name,
+            type: 'procedure',
+            database: db,
+            schema: schema,
+            isLeaf: true
+          }))
+          resolve(nodes)
+        } else {
+          resolve([])
+        }
+      } else if (data.label === 'Functions') {
+        const funcRes = await api.getFunctions(currentConnectionId.value, db, schema)
+        if (funcRes.code === 0 && funcRes.data) {
+          const nodes: TreeNode[] = funcRes.data.map(f => ({
+            id: `func_${db}_${schema || ''}_${f.name}`,
+            label: f.name,
+            type: 'function',
+            database: db,
+            schema: schema,
+            isLeaf: true
+          }))
+          resolve(nodes)
+        } else {
+          resolve([])
+        }
+      } else {
+        resolve([])
+      }
+    } catch (e) {
+      resolve([])
+    }
+    return
+  }
+
+  resolve([])
+}
+
+function handleNodeClick(data: TreeNode) {
+  if (data.type === 'table' || data.type === 'view' || data.type === 'procedure' || data.type === 'function') {
+    currentDatabase.value = data.database || ''
+    currentSchema.value = data.schema || ''
+    queryStore.currentSchemaName = data.schema || ''
+    
+    if (data.type === 'table') {
+      handleTableClick(data.label)
+    } else if (data.type === 'view') {
+      handleViewClick(data.label)
+    } else if (data.type === 'procedure') {
+      handleRoutineClick(data.label, 'PROCEDURE')
+    } else if (data.type === 'function') {
+      handleRoutineClick(data.label, 'FUNCTION')
+    }
+  }
+}
+
 const SQL_KEYWORDS = [
   'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'LIMIT', 'ORDER BY', 'GROUP BY',
   'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'CREATE TABLE',
@@ -340,82 +519,7 @@ async function handleConnectionChange(id: string) {
   queryStore.tables = [] // 清空表列表
   queryStore.currentSchema = null // 清空当前表结构
   selectedTable.value = '' // 清空选中的表
-  if (id) {
-    try {
-      await queryStore.fetchDatabases(id)
-      // 不再自动选择第一个数据库,让用户手动选择
-    } catch (e: any) {
-      ElNotification.error({
-        title: '加载失败',
-        message: e.response?.data?.message || '加载数据库列表失败',
-        position: 'top-right'
-      })
-    }
-  }
-}
-
-async function handleDatabaseChange(db: string) {
-  // 重置 schema
-  currentSchema.value = ''
-  queryStore.currentSchemaName = ''
-  queryStore.schemas = []
-  queryStore.tables = [] // 清空表列表
-  queryStore.currentSchema = null // 清空当前表结构
-  selectedTable.value = '' // 清空选中的表
-
-  if (db) {
-    try {
-      // 先尝试加载 schemas（PostgreSQL 支持）
-      await queryStore.fetchSchemas(currentConnectionId.value, db)
-
-      // 如果有 schemas，等待用户选择；否则直接加载表
-      if (queryStore.schemas.length === 0) {
-        await loadTables(currentConnectionId.value, db)
-        if (Array.isArray(queryStore.tables) && queryStore.tables.length > 0) {
-          handleTableClick(queryStore.tables[0].name)
-        }
-      }
-    } catch (e: any) {
-      ElNotification.error({
-        title: '加载失败',
-        message: e.response?.data?.message || '加载 schemas 失败',
-        position: 'top-right'
-      })
-    }
-  }
-}
-
-async function handleSchemaChange(schema: string) {
-  // 更新 store 中的 schema 名称
-  queryStore.currentSchemaName = schema
-  queryStore.tables = [] // 清空表列表
-  queryStore.currentSchema = null // 清空当前表结构
-  selectedTable.value = '' // 清空选中的表
-
-  if (schema) {
-    await loadTables(currentConnectionId.value, currentDatabase.value, schema)
-    if (Array.isArray(queryStore.tables) && queryStore.tables.length > 0) {
-      handleTableClick(queryStore.tables[0].name)
-    }
-  } else {
-    // 如果清空了 schema，重新加载默认表
-    await loadTables(currentConnectionId.value, currentDatabase.value)
-    if (Array.isArray(queryStore.tables) && queryStore.tables.length > 0) {
-      handleTableClick(queryStore.tables[0].name)
-    }
-  }
-}
-
-async function loadTables(id: string, database?: string, schema?: string) {
-  try {
-    await queryStore.fetchTables(id, database, schema)
-  } catch (e: any) {
-    ElNotification.error({
-      title: '加载失败',
-      message: e.response?.data?.message || '加载表列表失败',
-      position: 'top-right'
-    })
-  }
+  // tree 会因为 :key="currentConnectionId" 自动重新 render 和 load
 }
 
 async function handleExecute() {
@@ -471,6 +575,36 @@ function handleTableClick(tableName: string) {
   const tableRef = currentSchema.value ? `${currentSchema.value}.${tableName}` : tableName
   const sql = `SELECT * FROM ${tableRef} LIMIT 100;`
   editor?.setValue(sql)
+}
+
+async function handleViewClick(viewName: string) {
+  selectedTable.value = viewName
+  try {
+    const res = await api.getViewDefinition(currentConnectionId.value, viewName, currentDatabase.value, currentSchema.value)
+    if (res.code === 0 && res.data) {
+      editor?.setValue(res.data)
+      handleBeautify()
+    } else {
+      ElMessage.warning('未能获取到视图定义: ' + (res.message || '未知错误'))
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || '获取视图定义失败')
+  }
+}
+
+async function handleRoutineClick(routineName: string, routineType: 'PROCEDURE'|'FUNCTION') {
+  selectedTable.value = routineName
+  try {
+    const res = await api.getRoutineDefinition(currentConnectionId.value, routineName, routineType, currentDatabase.value, currentSchema.value)
+    if (res.code === 0 && res.data) {
+      editor?.setValue(res.data)
+      handleBeautify()
+    } else {
+      ElMessage.warning('未能获取到定义: ' + (res.message || '可能不支持或不存在该对象'))
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || '获取定义失败')
+  }
 }
 
 function handleExport() {
@@ -605,22 +739,17 @@ async function handleAddDataSubmit() {
   margin-bottom: 10px;
 }
 
-.tables-list {
-  max-height: calc(100vh - 150px);
+.tree-container {
+  height: calc(100vh - 120px);
   overflow-y: auto;
 }
 
-.table-item {
+.custom-tree-node {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.table-item:hover {
-  background-color: #f5f7fa;
+  font-size: 14px;
+  padding-right: 8px;
 }
 
 .el-main {

@@ -262,6 +262,113 @@ func (a *MySQLAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo,
 	return views, nil
 }
 
+// GetProcedures 获取存储过程列表
+func (a *MySQLAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT
+			ROUTINE_NAME,
+			ROUTINE_COMMENT
+		FROM INFORMATION_SCHEMA.ROUTINES
+		WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'PROCEDURE'
+		ORDER BY ROUTINE_NAME
+	`
+
+	rows, err := db.Query(query, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var procedures []model.RoutineInfo
+	for rows.Next() {
+		var p model.RoutineInfo
+		var comment sql.NullString
+		if err := rows.Scan(&p.Name, &comment); err != nil {
+			return nil, err
+		}
+		p.Database = database
+		p.Type = "PROCEDURE"
+		p.Comment = comment.String
+		procedures = append(procedures, p)
+	}
+
+	return procedures, nil
+}
+
+// GetViewDefinition 获取视图定义
+func (a *MySQLAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	var definition string
+	query := fmt.Sprintf("SHOW CREATE VIEW `%s`.`%s`", database, viewName)
+	row := db.QueryRow(query)
+
+	var viewNameResult, createViewSQL, characterSet, collationConnection sql.NullString
+	if err := row.Scan(&viewNameResult, &createViewSQL, &characterSet, &collationConnection); err != nil {
+		return "", err
+	}
+
+	definition = createViewSQL.String
+	if definition == "" {
+		definition = "/* 无法获取视图定义，可能由于权限不足 */"
+	}
+	return definition, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义
+func (a *MySQLAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	var definition string
+	var query string
+	if strings.ToUpper(routineType) == "FUNCTION" {
+		query = fmt.Sprintf("SHOW CREATE FUNCTION `%s`.`%s`", database, routineName)
+	} else {
+		query = fmt.Sprintf("SHOW CREATE PROCEDURE `%s`.`%s`", database, routineName)
+	}
+
+	row := db.QueryRow(query)
+	var routineNameResult, sqlMode, createRoutineSQL, characterSet, collationConnection, databaseCollation sql.NullString
+	if err := row.Scan(&routineNameResult, &sqlMode, &createRoutineSQL, &characterSet, &collationConnection, &databaseCollation); err != nil {
+		return "", err
+	}
+
+	definition = createRoutineSQL.String
+	if definition == "" {
+		definition = "/* 无法获取定义，可能由于权限不足 */"
+	}
+	return definition, nil
+}
+
+// GetFunctions 获取函数列表
+func (a *MySQLAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT
+			ROUTINE_NAME,
+			ROUTINE_COMMENT
+		FROM INFORMATION_SCHEMA.ROUTINES
+		WHERE ROUTINE_SCHEMA = ? AND ROUTINE_TYPE = 'FUNCTION'
+		ORDER BY ROUTINE_NAME
+	`
+
+	rows, err := db.Query(query, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var functions []model.RoutineInfo
+	for rows.Next() {
+		var f model.RoutineInfo
+		var comment sql.NullString
+		if err := rows.Scan(&f.Name, &comment); err != nil {
+			return nil, err
+		}
+		f.Database = database
+		f.Type = "FUNCTION"
+		f.Comment = comment.String
+		functions = append(functions, f)
+	}
+
+	return functions, nil
+}
+
 // GetIndexes 获取索引列表
 func (a *MySQLAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)

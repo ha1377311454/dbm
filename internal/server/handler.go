@@ -99,6 +99,10 @@ func (s *Server) setupRoutes() {
 		api.GET("/connections/:id/tables", s.getTables)
 		api.GET("/connections/:id/tables/:table/schema", s.getTableSchema)
 		api.GET("/connections/:id/views", s.getViews)
+		api.GET("/connections/:id/views/:view/definition", s.getViewDefinition)
+		api.GET("/connections/:id/procedures", s.getProcedures)
+		api.GET("/connections/:id/functions", s.getFunctions)
+		api.GET("/connections/:id/routines/:routine/definition", s.getRoutineDefinition)
 
 		// 表结构修改
 		api.POST("/connections/:id/tables/:table/alter", s.alterTable)
@@ -588,6 +592,163 @@ func (s *Server) getViews(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, successResponse(views))
+}
+
+// getProcedures 获取存储过程列表
+func (s *Server) getProcedures(c *gin.Context) {
+	id := c.Param("id")
+	database := c.DefaultQuery("database", "")
+	schema := c.DefaultQuery("schema", "")
+
+	db, config, err := s.connectionSvc.GetDB(id, database)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+	defer func() {}() // 保持连接打开
+
+	dbAdapter, err := s.databaseSvc.GetAdapter(config.Type)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	var procedures []model.RoutineInfo
+	// PostgreSQL 支持 schema 参数
+	if schema != "" {
+		if schemaAware, ok := dbAdapter.(adapter.SchemaAwareDatabase); ok {
+			procedures, err = schemaAware.GetProceduresWithSchema(db, database, schema)
+		} else {
+			procedures, err = dbAdapter.GetProcedures(db, database)
+		}
+	} else {
+		procedures, err = dbAdapter.GetProcedures(db, database)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(procedures))
+}
+
+// getFunctions 获取函数列表
+func (s *Server) getFunctions(c *gin.Context) {
+	id := c.Param("id")
+	database := c.DefaultQuery("database", "")
+	schema := c.DefaultQuery("schema", "")
+
+	db, config, err := s.connectionSvc.GetDB(id, database)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+	defer func() {}() // 保持连接打开
+
+	dbAdapter, err := s.databaseSvc.GetAdapter(config.Type)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	var functions []model.RoutineInfo
+	// PostgreSQL 支持 schema 参数
+	if schema != "" {
+		if schemaAware, ok := dbAdapter.(adapter.SchemaAwareDatabase); ok {
+			functions, err = schemaAware.GetFunctionsWithSchema(db, database, schema)
+		} else {
+			functions, err = dbAdapter.GetFunctions(db, database)
+		}
+	} else {
+		functions, err = dbAdapter.GetFunctions(db, database)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(functions))
+}
+
+// getViewDefinition 获取视图定义
+func (s *Server) getViewDefinition(c *gin.Context) {
+	id := c.Param("id")
+	viewName := c.Param("view")
+	database := c.DefaultQuery("database", "")
+	schema := c.DefaultQuery("schema", "")
+
+	db, config, err := s.connectionSvc.GetDB(id, database)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+	defer func() {}() // 保持连接打开
+
+	dbAdapter, err := s.databaseSvc.GetAdapter(config.Type)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	var definition string
+	if schema != "" {
+		if schemaAware, ok := dbAdapter.(adapter.SchemaAwareDatabase); ok {
+			definition, err = schemaAware.GetViewDefinitionWithSchema(db, database, schema, viewName)
+		} else {
+			definition, err = dbAdapter.GetViewDefinition(db, database, viewName)
+		}
+	} else {
+		definition, err = dbAdapter.GetViewDefinition(db, database, viewName)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(definition))
+}
+
+// getRoutineDefinition 获取存储过程或函数定义
+func (s *Server) getRoutineDefinition(c *gin.Context) {
+	id := c.Param("id")
+	routineName := c.Param("routine")
+	routineType := c.DefaultQuery("type", "PROCEDURE")
+	database := c.DefaultQuery("database", "")
+	schema := c.DefaultQuery("schema", "")
+
+	db, config, err := s.connectionSvc.GetDB(id, database)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+	defer func() {}() // 保持连接打开
+
+	dbAdapter, err := s.databaseSvc.GetAdapter(config.Type)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	var definition string
+	if schema != "" {
+		if schemaAware, ok := dbAdapter.(adapter.SchemaAwareDatabase); ok {
+			definition, err = schemaAware.GetRoutineDefinitionWithSchema(db, database, schema, routineName, routineType)
+		} else {
+			definition, err = dbAdapter.GetRoutineDefinition(db, database, routineName, routineType)
+		}
+	} else {
+		definition, err = dbAdapter.GetRoutineDefinition(db, database, routineName, routineType)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(500, err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, successResponse(definition))
 }
 
 // ==================== SQL 执行 ====================

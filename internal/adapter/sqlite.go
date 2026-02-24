@@ -211,6 +211,32 @@ func (a *SQLiteAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo
 	return views, nil
 }
 
+// GetProcedures 获取存储过程列表（SQLite 不支持）
+func (a *SQLiteAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
+// GetViewDefinition 获取视图定义
+func (a *SQLiteAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	var definition string
+	query := `SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?`
+	row := db.QueryRow(query, viewName)
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+	return definition, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义（SQLite 不支持）
+func (a *SQLiteAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	return "", fmt.Errorf("SQLite doesn't support viewing routine definition natively")
+}
+
+// GetFunctions 获取函数列表（SQLite 不支持）
+func (a *SQLiteAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
 // GetIndexes 获取索引列表
 func (a *SQLiteAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)

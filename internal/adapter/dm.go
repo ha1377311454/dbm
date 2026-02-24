@@ -339,6 +339,88 @@ func (a *DMAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, er
 	return views, nil
 }
 
+// GetProcedures 获取存储过程列表
+func (a *DMAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT OBJECT_NAME
+		FROM ALL_OBJECTS
+		WHERE OWNER = :1 AND OBJECT_TYPE = 'PROCEDURE'
+		ORDER BY OBJECT_NAME
+	`
+
+	rows, err := db.Query(query, strings.ToUpper(database))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var procedures []model.RoutineInfo
+	for rows.Next() {
+		var p model.RoutineInfo
+		if err := rows.Scan(&p.Name); err != nil {
+			return nil, err
+		}
+		p.Database = database
+		p.Schema = database
+		p.Type = "PROCEDURE"
+		procedures = append(procedures, p)
+	}
+
+	return procedures, nil
+}
+
+// GetFunctions 获取函数列表
+func (a *DMAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	query := `
+		SELECT OBJECT_NAME
+		FROM ALL_OBJECTS
+		WHERE OWNER = :1 AND OBJECT_TYPE = 'FUNCTION'
+		ORDER BY OBJECT_NAME
+	`
+
+	rows, err := db.Query(query, strings.ToUpper(database))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var functions []model.RoutineInfo
+	for rows.Next() {
+		var f model.RoutineInfo
+		if err := rows.Scan(&f.Name); err != nil {
+			return nil, err
+		}
+		f.Database = database
+		f.Schema = database
+		f.Type = "FUNCTION"
+		functions = append(functions, f)
+	}
+
+	return functions, nil
+}
+
+// GetViewDefinition 获取视图定义
+func (a *DMAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	var definition string
+	query := `SELECT DBMS_METADATA.GET_DDL('VIEW', :1, :2) FROM DUAL`
+	row := db.QueryRow(query, strings.ToUpper(viewName), strings.ToUpper(database))
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+	return definition, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义
+func (a *DMAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	var definition string
+	query := `SELECT DBMS_METADATA.GET_DDL(:1, :2, :3) FROM DUAL`
+	row := db.QueryRow(query, strings.ToUpper(routineType), strings.ToUpper(routineName), strings.ToUpper(database))
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+	return definition, nil
+}
+
 // GetIndexes 获取索引列表
 func (a *DMAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)

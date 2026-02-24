@@ -293,6 +293,53 @@ func (a *KingBaseAdapter) GetViewsWithSchema(db *sql.DB, database, schema string
 	return views, nil
 }
 
+// GetViewDefinition 获取视图定义
+func (a *KingBaseAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	return a.GetViewDefinitionWithSchema(db, database, "public", viewName)
+}
+
+// GetViewDefinitionWithSchema 获取指定 schema 下的视图定义
+func (a *KingBaseAdapter) GetViewDefinitionWithSchema(db *sql.DB, database, schema, viewName string) (string, error) {
+	var definition string
+	query := `
+		SELECT pg_get_viewdef(c.oid, true)
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relname = $1 AND n.nspname = $2
+	`
+
+	row := db.QueryRow(query, viewName, schema)
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+
+	return definition, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义
+func (a *KingBaseAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	return a.GetRoutineDefinitionWithSchema(db, database, "public", routineName, routineType)
+}
+
+// GetRoutineDefinitionWithSchema 获取指定 schema 下的存储过程或函数定义
+func (a *KingBaseAdapter) GetRoutineDefinitionWithSchema(db *sql.DB, database, schema, routineName, routineType string) (string, error) {
+	var definition string
+	query := `
+		SELECT pg_get_functiondef(p.oid)
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE p.proname = $1 AND n.nspname = $2
+		LIMIT 1
+	`
+
+	row := db.QueryRow(query, routineName, schema)
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+
+	return definition, nil
+}
+
 // GetIndexes 获取索引列表
 func (a *KingBaseAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)

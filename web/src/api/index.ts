@@ -43,6 +43,14 @@ export const api = {
     request.get<any, ApiResponse<TableSchema>>(`/connections/${id}/tables/${table}/schema`, { params: { database, schema } }),
   getViews: (id: string, database?: string, schema?: string) =>
     request.get<any, ApiResponse<TableInfo[]>>(`/connections/${id}/views`, { params: { database, schema } }),
+  getViewDefinition: (id: string, view: string, database?: string, schema?: string) =>
+    request.get<any, ApiResponse<string>>(`/connections/${id}/views/${view}/definition`, { params: { database, schema } }),
+  getProcedures: (id: string, database?: string, schema?: string) =>
+    request.get<any, ApiResponse<any[]>>(`/connections/${id}/procedures`, { params: { database, schema } }),
+  getFunctions: (id: string, database?: string, schema?: string) =>
+    request.get<any, ApiResponse<any[]>>(`/connections/${id}/functions`, { params: { database, schema } }),
+  getRoutineDefinition: (id: string, routine: string, type: 'PROCEDURE' | 'FUNCTION', database?: string, schema?: string) =>
+    request.get<any, ApiResponse<string>>(`/connections/${id}/routines/${routine}/definition`, { params: { type, database, schema } }),
 
   // SQL 执行
   executeQuery: (id: string, query: string, opts?: QueryOptions) =>

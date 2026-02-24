@@ -256,6 +256,35 @@ func (a *ClickHouseAdapter) GetViews(db *sql.DB, database string) ([]model.Table
 	return views, nil
 }
 
+// GetViewDefinition 获取视图定义
+func (a *ClickHouseAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	var definition string
+	query := fmt.Sprintf("SHOW CREATE VIEW `%s`.`%s`", database, viewName)
+	row := db.QueryRow(query)
+
+	if err := row.Scan(&definition); err != nil {
+		return "", err
+	}
+
+	return definition, nil
+}
+
+// GetProcedures 获取存储过程列表（ClickHouse 不支持传统的存储过程）
+func (a *ClickHouseAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
+// GetFunctions 获取函数列表
+// ClickHouse 有 UDF 但系统表里通常不在这里展示为 schema 层面的 routine，暂不实现
+func (a *ClickHouseAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
+// GetRoutineDefinition 获取存储过程或函数定义（ClickHouse 不支持）
+func (a *ClickHouseAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	return "", fmt.Errorf("ClickHouse doesn't support viewing routine definition natively")
+}
+
 // GetIndexes 获取索引列表
 func (a *ClickHouseAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
 	// ClickHouse 索引概念不同，通常指 Skipping Indexes 或 Primary Key

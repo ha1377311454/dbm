@@ -19,6 +19,10 @@ type DatabaseAdapter interface {
 	GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error)
 	GetViews(db *sql.DB, database string) ([]model.TableInfo, error)
 	GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error)
+	GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error)
+	GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error)
+	GetViewDefinition(db *sql.DB, database, viewName string) (string, error)
+	GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error)
 
 	// SQL 执行
 	Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error)
@@ -54,6 +58,18 @@ type SchemaAwareDatabase interface {
 
 	// GetViewsWithSchema 获取指定 schema 下的视图列表
 	GetViewsWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error)
+
+	// GetProceduresWithSchema 获取指定 schema 下的存储过程
+	GetProceduresWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error)
+
+	// GetFunctionsWithSchema 获取指定 schema 下的函数
+	GetFunctionsWithSchema(db *sql.DB, database, schema string) ([]model.RoutineInfo, error)
+
+	// GetViewDefinitionWithSchema 获取指定 schema 下的视图定义
+	GetViewDefinitionWithSchema(db *sql.DB, database, schema, viewName string) (string, error)
+
+	// GetRoutineDefinitionWithSchema 获取指定 schema 下的存储过程或函数定义
+	GetRoutineDefinitionWithSchema(db *sql.DB, database, schema, routineName, routineType string) (string, error)
 }
 
 // AdapterFactory 适配器工厂接口
@@ -68,4 +84,24 @@ type BaseAdapter struct{}
 // NewBaseAdapter 创建基础适配器
 func NewBaseAdapter() *BaseAdapter {
 	return &BaseAdapter{}
+}
+
+// GetProcedures 默认不实现
+func (a *BaseAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
+// GetFunctions 默认不实现
+func (a *BaseAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+	return []model.RoutineInfo{}, nil
+}
+
+// GetViewDefinition 默认不实现
+func (a *BaseAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+	return "", nil
+}
+
+// GetRoutineDefinition 默认不实现
+func (a *BaseAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+	return "", nil
 }
