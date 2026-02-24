@@ -104,7 +104,7 @@
             :default-sort="{ prop: 'id', order: 'ascending' }"
             stripe
             border
-            height="400"
+            height="100%"
           >
             <el-table-column
               v-for="col in queryStore.result.columns"
@@ -847,6 +847,10 @@ async function handleAddDataSubmit() {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
 }
 
 .result-header {
