@@ -22,7 +22,7 @@ DBM 是一个用 Go 语言开发的现代化数据库管理工具，旨在为开
 
 ### 下载
 
-前往 [Releases](https://github.com/yourusername/dbm/releases) 页面下载对应平台的可执行文件。
+前往 [Releases](https://github.com/ha1377311454/dbm/releases/tag/v1.0.0) 页面下载对应平台的可执行文件。
 
 | 平台 | 文件名 |
 |-----|-------|
@@ -42,6 +42,9 @@ chmod +x dbm-linux-amd64
 
 # 自定义端口
 ./dbm-linux-amd64 --port 9000
+
+# 本地编译调试
+lsof -t -i:2048 | xargs kill || true && make build && ./dist/dbm > server.log 2>&1 &
 ```
 
 启动后访问：http://localhost:2048
