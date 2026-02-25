@@ -418,13 +418,40 @@ const MongodbIcon = {
   }
 }
 
+const KingbaseIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 128 128', width: '16', height: '16', style: 'margin-right: 8px;' }, [
+      h('rect', { x: '0', y: '0', width: '128', height: '128', rx: '20', fill: '#E63946' }),
+      h('path', { fill: '#FFFFFF', d: 'M30 25h15v78H30zM50 64l35-39h20L70 64l35 39H85L50 64z' })
+    ])
+  }
+}
+
+const MssqlIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 128 128', width: '16', height: '16', style: 'margin-right: 8px;' }, [
+      h('path', { fill: '#CC2927', d: 'M120 100H24V12h96v88zM60 40v32h24V40H60zm-24 52h72v-8h-72v8z' })
+    ])
+  }
+}
+
+const OracleIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 128 128', width: '16', height: '16', style: 'margin-right: 8px;' }, [
+      h('path', { fill: '#F80000', d: 'M64 16C37.49 16 16 37.49 16 64s21.49 48 48 48 48-21.49 48-48-21.49-48-48-48zm0 80c-17.67 0-32-14.33-32-32s14.33-32 32-32 32 14.33 32 32-14.33 32-32 32z' })
+    ])
+  }
+}
+
 function getDatabaseIcon(type: string) {
   const icons: Record<string, any> = {
     mysql: MysqlIcon,
     postgresql: PostgresIcon,
     sqlite: SqliteIcon,
     clickhouse: ClickHouseIcon,
-    kingbase: Monitor,
+    kingbase: KingbaseIcon,
+    mssql: MssqlIcon,
+    oracle: OracleIcon,
     dm: DMIcon,
     mongodb: MongodbIcon
   }
