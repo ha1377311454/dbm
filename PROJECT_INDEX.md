@@ -1,8 +1,8 @@
 # PROJECT_INDEX.md - DBM 数据库管理工具
 
-> 生成时间：2026-02-24
+> 生成时间：2026-02-25
 > 项目版本：dev
-> 最后更新：2026-02-24（新增存储过程和函数查询功能）
+> 最后更新：2026-02-25（新增 MongoDB 数据库支持）
 
 ## 项目概览
 
@@ -52,6 +52,7 @@
 - ClickHouse (22.3+)
 - KingBase (ES V8)
 - 达梦 DM (8+)
+- MongoDB (4.0+)
 
 ### 项目目录结构
 
@@ -112,6 +113,7 @@ dbm/
 | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | ClickHouse 适配器实现 |
 | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | KingBase 适配器实现 |
 | [internal/adapter/dm.go](./internal/adapter/dm.go) | 达梦数据库适配器实现 |
+| [internal/adapter/mongodb.go](./internal/adapter/mongodb.go) | MongoDB 适配器实现 |
 | [internal/adapter/gokb/](./internal/adapter/gokb/) | KingBase 驱动（本地模块） |
 
 ### 导出引擎文件
@@ -199,6 +201,8 @@ dbm/
 - [clickhouse.go](./internal/adapter/clickhouse.go) - ClickHouse 实现
 - [kingbase.go](./internal/adapter/kingbase.go) - KingBase 实现（基于 PostgreSQL）
 - [dm.go](./internal/adapter/dm.go) - 达梦数据库实现
+- [mongodb.go](./internal/adapter/mongodb.go) - MongoDB 实现
+- [mongodb.go](./internal/adapter/mongodb.go) - MongoDB 实现
 - [gokb/](./internal/adapter/gokb/) - KingBase 驱动（本地模块）
 
 **依赖**：
@@ -362,6 +366,7 @@ const (
     DatabaseClickHouse DatabaseType = "clickhouse"
     DatabaseKingBase   DatabaseType = "kingbase"
     DatabaseDM         DatabaseType = "dm"
+    DatabaseMongoDB    DatabaseType = "mongodb"
 )
 
 // RoutineInfo 存储过程与函数信息
@@ -741,6 +746,7 @@ lsof -t -i:2048 | xargs kill || true && make build && ./dist/dbm > server.log 2>
 | ClickHouse | [internal/adapter/clickhouse.go](./internal/adapter/clickhouse.go) | ClickHouse/clickhouse-go/v2 | 不支持传统索引 |
 | KingBase | [internal/adapter/kingbase.go](./internal/adapter/kingbase.go) | kingbase.com/gokb (本地) | 基于 PostgreSQL 内核 |
 | 达梦 DM | [internal/adapter/dm.go](./internal/adapter/dm.go) | gitee.com/chunanyong/dm | 语法类似 Oracle |
+| MongoDB | [internal/adapter/mongodb.go](./internal/adapter/mongodb.go) | go.mongodb.org/mongo-driver/v2 | NoSQL 文档数据库 |
 
 ### 常见任务快速定位
 
@@ -874,6 +880,7 @@ lsof -t -i:2048 | xargs kill || true && make build && ./dist/dbm > server.log 2>
 | ClickHouse/clickhouse-go/v2        | 2.43.0  | ClickHouse 驱动 |
 | kingbase.com/gokb                   | 1.0.0   | KingBase 驱动（本地模块） |
 | gitee.com/chunanyong/dm            | 1.8.22  | 达梦数据库驱动   |
+| go.mongodb.org/mongo-driver/v2     | 2.5.0   | MongoDB 驱动     |
 | google/uuid                        | 1.6.0   | UUID 生成       |
 | golang.org/x/crypto                | 0.47.0  | AES-256-GCM 加密 |
 | gopkg.in/yaml.v3                    | 3.0.1   | YAML 配置解析   |
@@ -936,4 +943,4 @@ lsof -t -i:2048 | xargs kill || true && make build && ./dist/dbm > server.log 2>
 ---
 
 **文档生成工具**: /project-index skill
-**最后更新**: 2026-02-24
+**最后更新**: 2026-02-25
