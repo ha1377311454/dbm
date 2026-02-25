@@ -181,13 +181,13 @@ func TestDMFullInit(t *testing.T) {
 
 	t.Log("=== 开始初始化达梦测试数据 ===")
 
-	// 1. 创建Schema
+	dbSQL := db.(*sql.DB)
 	t.Log("步骤1: 创建Schema TEST")
-	_, err = db.Exec("CREATE SCHEMA TEST")
+	_, err = dbSQL.Exec("CREATE SCHEMA TEST")
 	if err != nil {
 		t.Logf("Schema已存在，尝试重新创建: %v", err)
-		db.Exec("DROP SCHEMA TEST CASCADE")
-		_, err = db.Exec("CREATE SCHEMA TEST")
+		dbSQL.Exec("DROP SCHEMA TEST CASCADE")
+		_, err = dbSQL.Exec("CREATE SCHEMA TEST")
 		if err != nil {
 			t.Fatalf("创建Schema失败: %v", err)
 		}
@@ -196,7 +196,7 @@ func TestDMFullInit(t *testing.T) {
 
 	// 2. 创建表
 	t.Log("步骤2: 创建表 users")
-	db.Exec("DROP TABLE TEST.users")
+	dbSQL.Exec("DROP TABLE TEST.users")
 	createTableSQL := `
 	CREATE TABLE TEST.users (
 		id INT PRIMARY KEY,
@@ -207,7 +207,7 @@ func TestDMFullInit(t *testing.T) {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		is_active INT DEFAULT 1
 	)`
-	_, err = db.Exec(createTableSQL)
+	_, err = dbSQL.Exec(createTableSQL)
 	if err != nil {
 		t.Fatalf("创建表失败: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestDMFullInit(t *testing.T) {
 	// 3. 插入100行数据
 	t.Log("步骤3: 插入100行测试数据")
 	insertSQL := `INSERT INTO TEST.users (id, username, email, age, score, is_active) VALUES (:1, :2, :3, :4, :5, :6)`
-	stmt, _ := db.Prepare(insertSQL)
+	stmt, _ := dbSQL.Prepare(insertSQL)
 	defer stmt.Close()
 
 	for i := 1; i <= 100; i++ {
@@ -234,7 +234,7 @@ func TestDMFullInit(t *testing.T) {
 
 	// 4. 验证数据
 	var count int
-	db.QueryRow("SELECT COUNT(*) FROM TEST.users").Scan(&count)
+	dbSQL.QueryRow("SELECT COUNT(*) FROM TEST.users").Scan(&count)
 	t.Logf("✓ 数据验证: 表中共有 %d 行数据", count)
 
 	t.Log("=== 初始化完成 ===")

@@ -25,7 +25,7 @@ func NewDMAdapter() *DMAdapter {
 }
 
 // Connect 连接达梦数据库
-func (a *DMAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error) {
+func (a *DMAdapter) Connect(config *model.ConnectionConfig) (any, error) {
 	dsn := a.buildDSN(config)
 	db, err := sql.Open("dm", dsn)
 	if err != nil {
@@ -86,18 +86,19 @@ func (a *DMAdapter) buildDSN(config *model.ConnectionConfig) string {
 }
 
 // Close 关闭数据库连接
-func (a *DMAdapter) Close(db *sql.DB) error {
-	return db.Close()
+func (a *DMAdapter) Close(db any) error {
+	return db.(*sql.DB).Close()
 }
 
 // Ping 测试数据库连接
-func (a *DMAdapter) Ping(db *sql.DB) error {
-	return db.Ping()
+func (a *DMAdapter) Ping(db any) error {
+	return db.(*sql.DB).Ping()
 }
 
 // GetDatabases 获取数据库列表
 // 达梦中使用模式(Schema)概念
-func (a *DMAdapter) GetDatabases(db *sql.DB) ([]string, error) {
+func (a *DMAdapter) GetDatabases(db any) ([]string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT DISTINCT OWNER
 		FROM ALL_OBJECTS
@@ -106,7 +107,7 @@ func (a *DMAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 		ORDER BY OWNER
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +126,8 @@ func (a *DMAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 }
 
 // GetTables 获取表列表
-func (a *DMAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *DMAdapter) GetTables(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			TABLE_NAME,
@@ -136,7 +138,7 @@ func (a *DMAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, e
 		ORDER BY TABLE_NAME
 	`
 
-	rows, err := db.Query(query, strings.ToUpper(database))
+	rows, err := dbSQL.Query(query, strings.ToUpper(database))
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +160,8 @@ func (a *DMAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, e
 }
 
 // GetTableSchema 获取表结构
-func (a *DMAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error) {
+func (a *DMAdapter) GetTableSchema(db any, database, table string) (*model.TableSchema, error) {
+	dbSQL := db.(*sql.DB)
 	tableSchema := &model.TableSchema{
 		Database: database,
 		Table:    table,
@@ -178,7 +181,7 @@ func (a *DMAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.T
 		ORDER BY COLUMN_ID
 	`
 
-	colsRows, err := db.Query(colsQuery, strings.ToUpper(database), strings.ToUpper(table))
+	colsRows, err := dbSQL.Query(colsQuery, strings.ToUpper(database), strings.ToUpper(table))
 	if err != nil {
 		return nil, err
 	}
@@ -190,15 +193,13 @@ func (a *DMAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.T
 	for colsRows.Next() {
 		var col model.ColumnInfo
 		var colType, nullable, def, key, extra sql.NullString
-		var dataLen sql.NullInt64
-		var dataPrecision, dataScale sql.NullInt64
 
 		if err := colsRows.Scan(&col.Name, &colType, &nullable, &def, &key, &extra); err != nil {
 			return nil, err
 		}
 
 		// 构建类型字符串
-		col.Type = a.buildTypeString(colType.String, dataLen, dataPrecision, dataScale)
+		col.Type = a.buildTypeString(colType.String, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{})
 		col.Nullable = nullable.String == "Y"
 		col.DefaultValue = def.String
 		col.Key = key.String
@@ -215,7 +216,7 @@ func (a *DMAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.T
 			FROM ALL_COL_COMMENTS
 			WHERE OWNER = :1 AND TABLE_NAME = :2
 		`
-		commentRows, err := db.Query(commentQuery, strings.ToUpper(database), strings.ToUpper(table))
+		commentRows, err := dbSQL.Query(commentQuery, strings.ToUpper(database), strings.ToUpper(table))
 		if err == nil {
 			defer commentRows.Close()
 			commentMap := make(map[string]string)
@@ -247,7 +248,7 @@ func (a *DMAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.T
 		ORDER BY ic.INDEX_NAME, ic.COLUMN_POSITION
 	`
 
-	idxRows, err := db.Query(idxQuery, strings.ToUpper(database), strings.ToUpper(table))
+	idxRows, err := dbSQL.Query(idxQuery, strings.ToUpper(database), strings.ToUpper(table))
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +308,8 @@ func (a *DMAdapter) buildTypeString(dataType string, length, precision, scale sq
 }
 
 // GetViews 获取视图列表
-func (a *DMAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *DMAdapter) GetViews(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			VIEW_NAME,
@@ -318,7 +320,7 @@ func (a *DMAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, er
 		ORDER BY VIEW_NAME
 	`
 
-	rows, err := db.Query(query, strings.ToUpper(database))
+	rows, err := dbSQL.Query(query, strings.ToUpper(database))
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +342,8 @@ func (a *DMAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, er
 }
 
 // GetProcedures 获取存储过程列表
-func (a *DMAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *DMAdapter) GetProcedures(db any, database string) ([]model.RoutineInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT OBJECT_NAME
 		FROM ALL_OBJECTS
@@ -348,7 +351,7 @@ func (a *DMAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineI
 		ORDER BY OBJECT_NAME
 	`
 
-	rows, err := db.Query(query, strings.ToUpper(database))
+	rows, err := dbSQL.Query(query, strings.ToUpper(database))
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +373,8 @@ func (a *DMAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineI
 }
 
 // GetFunctions 获取函数列表
-func (a *DMAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *DMAdapter) GetFunctions(db any, database string) ([]model.RoutineInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT OBJECT_NAME
 		FROM ALL_OBJECTS
@@ -378,7 +382,7 @@ func (a *DMAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineIn
 		ORDER BY OBJECT_NAME
 	`
 
-	rows, err := db.Query(query, strings.ToUpper(database))
+	rows, err := dbSQL.Query(query, strings.ToUpper(database))
 	if err != nil {
 		return nil, err
 	}
@@ -400,10 +404,11 @@ func (a *DMAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineIn
 }
 
 // GetViewDefinition 获取视图定义
-func (a *DMAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+func (a *DMAdapter) GetViewDefinition(db any, database, viewName string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := `SELECT DBMS_METADATA.GET_DDL('VIEW', :1, :2) FROM DUAL`
-	row := db.QueryRow(query, strings.ToUpper(viewName), strings.ToUpper(database))
+	row := dbSQL.QueryRow(query, strings.ToUpper(viewName), strings.ToUpper(database))
 	if err := row.Scan(&definition); err != nil {
 		return "", err
 	}
@@ -411,10 +416,11 @@ func (a *DMAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (st
 }
 
 // GetRoutineDefinition 获取存储过程或函数定义
-func (a *DMAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+func (a *DMAdapter) GetRoutineDefinition(db any, database, routineName, routineType string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := `SELECT DBMS_METADATA.GET_DDL(:1, :2, :3) FROM DUAL`
-	row := db.QueryRow(query, strings.ToUpper(routineType), strings.ToUpper(routineName), strings.ToUpper(database))
+	row := dbSQL.QueryRow(query, strings.ToUpper(routineType), strings.ToUpper(routineName), strings.ToUpper(database))
 	if err := row.Scan(&definition); err != nil {
 		return "", err
 	}
@@ -422,7 +428,7 @@ func (a *DMAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, rout
 }
 
 // GetIndexes 获取索引列表
-func (a *DMAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
+func (a *DMAdapter) GetIndexes(db any, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)
 	if err != nil {
 		return nil, err
@@ -431,10 +437,11 @@ func (a *DMAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.Inde
 }
 
 // Execute 执行非查询 SQL
-func (a *DMAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error) {
+func (a *DMAdapter) Execute(db any, query string, args ...interface{}) (*model.ExecuteResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
-	result, err := db.Exec(query, args...)
+	result, err := dbSQL.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +456,8 @@ func (a *DMAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*mod
 }
 
 // Query 执行查询
-func (a *DMAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+func (a *DMAdapter) Query(db any, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
 	trimQuery := strings.TrimSpace(strings.ToUpper(query))
@@ -459,7 +467,7 @@ func (a *DMAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*
 		strings.HasPrefix(trimQuery, "WITH")
 
 	if !isQuery {
-		result, err := db.Exec(query)
+		result, err := dbSQL.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -471,7 +479,7 @@ func (a *DMAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*
 		}, nil
 	}
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +526,8 @@ func (a *DMAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*
 }
 
 // Insert 插入数据
-func (a *DMAdapter) Insert(db *sql.DB, database, table string, data map[string]interface{}) error {
+func (a *DMAdapter) Insert(db any, database, table string, data map[string]interface{}) error {
+	dbSQL := db.(*sql.DB)
 	cols := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]interface{}, 0, len(data))
@@ -529,18 +538,19 @@ func (a *DMAdapter) Insert(db *sql.DB, database, table string, data map[string]i
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
+	insertSql := fmt.Sprintf(`INSERT INTO "%s"."%s" (%s) VALUES (%s)`,
 		strings.ToUpper(database),
 		strings.ToUpper(table),
 		strings.Join(cols, ", "),
 		strings.Join(placeholders, ", "))
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(insertSql, values...)
 	return err
 }
 
 // Update 更新数据
-func (a *DMAdapter) Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error {
+func (a *DMAdapter) Update(db any, database, table string, data map[string]interface{}, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("更新操作必须指定 WHERE 条件")
 	}
@@ -553,36 +563,38 @@ func (a *DMAdapter) Update(db *sql.DB, database, table string, data map[string]i
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf(`UPDATE "%s"."%s" SET %s WHERE %s`,
+	updateSql := fmt.Sprintf(`UPDATE "%s"."%s" SET %s WHERE %s`,
 		strings.ToUpper(database),
 		strings.ToUpper(table),
 		strings.Join(sets, ", "),
 		where)
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(updateSql, values...)
 	return err
 }
 
 // Delete 删除数据
-func (a *DMAdapter) Delete(db *sql.DB, database, table, where string) error {
+func (a *DMAdapter) Delete(db any, database, table, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("删除操作必须指定 WHERE 条件")
 	}
 
-	query := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE %s`,
+	deleteSql := fmt.Sprintf(`DELETE FROM "%s"."%s" WHERE %s`,
 		strings.ToUpper(database),
 		strings.ToUpper(table),
 		where)
 
-	_, err := db.Exec(query)
+	_, err := dbSQL.Exec(deleteSql)
 	return err
 }
 
 // ExportToCSV 导出为 CSV
-func (a *DMAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+func (a *DMAdapter) ExportToCSV(db any, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewCSVExporter(opts)
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return err
 	}
@@ -623,12 +635,13 @@ func (a *DMAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query st
 }
 
 // ExportToSQL 导出为 SQL
-func (a *DMAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+func (a *DMAdapter) ExportToSQL(db any, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewSQLExporter(opts, model.DatabaseDM)
 
 	// 如果提供了自定义查询，则按查询导出
 	if opts.Query != "" {
-		rows, err := db.Query(opts.Query)
+		rows, err := dbSQL.Query(opts.Query)
 		if err != nil {
 			return err
 		}
@@ -686,11 +699,11 @@ func (a *DMAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, t
 
 		// 导出数据
 		if !opts.StructureOnly {
-			query := fmt.Sprintf(`SELECT * FROM "%s"."%s"`, strings.ToUpper(database), strings.ToUpper(table))
+			querySQL := fmt.Sprintf(`SELECT * FROM "%s"."%s"`, strings.ToUpper(database), strings.ToUpper(table))
 			if opts.MaxRows > 0 {
-				query = fmt.Sprintf("%s LIMIT %d", query, opts.MaxRows)
+				querySQL = fmt.Sprintf("%s LIMIT %d", querySQL, opts.MaxRows)
 			}
-			rows, err := db.Query(query)
+			rows, err := dbSQL.Query(querySQL)
 			if err != nil {
 				return err
 			}
@@ -739,14 +752,15 @@ func (a *DMAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, t
 }
 
 // GetCreateTableSQL 获取建表语句
-func (a *DMAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (string, error) {
+func (a *DMAdapter) GetCreateTableSQL(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT DBMS_METADATA.GET_DDL('TABLE', :1, :2) AS CREATE_SQL
 		FROM DUAL
 	`
 
 	var createSQL sql.NullString
-	err := db.QueryRow(query, strings.ToUpper(table), strings.ToUpper(database)).Scan(&createSQL)
+	err := dbSQL.QueryRow(query, strings.ToUpper(table), strings.ToUpper(database)).Scan(&createSQL)
 	if err != nil {
 		return "", err
 	}
@@ -759,7 +773,8 @@ func (a *DMAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (strin
 }
 
 // AlterTable 修改表结构
-func (a *DMAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) error {
+func (a *DMAdapter) AlterTable(db any, request *model.AlterTableRequest) error {
+	dbSQL := db.(*sql.DB)
 	if len(request.Actions) == 0 {
 		return fmt.Errorf("no actions specified")
 	}
@@ -768,24 +783,24 @@ func (a *DMAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) err
 	tableName := strings.ToUpper(request.Table)
 
 	for _, action := range request.Actions {
-		var sql string
+		var alterSql string
 		var err error
 
 		switch action.Type {
 		case model.AlterActionAddColumn:
-			sql, err = a.buildAddColumnSQL(schemaName, tableName, action.Column)
+			alterSql, err = a.buildAddColumnSQL(schemaName, tableName, action.Column)
 		case model.AlterActionDropColumn:
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN "%s"`,
+			alterSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN "%s"`,
 				schemaName, tableName, strings.ToUpper(action.OldName))
 		case model.AlterActionModifyColumn:
-			sql, err = a.buildModifyColumnSQL(schemaName, tableName, action.Column)
+			alterSql, err = a.buildModifyColumnSQL(schemaName, tableName, action.Column)
 		case model.AlterActionRenameColumn:
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME COLUMN "%s" TO "%s"`,
+			alterSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME COLUMN "%s" TO "%s"`,
 				schemaName, tableName, strings.ToUpper(action.OldName), strings.ToUpper(action.NewName))
 		case model.AlterActionAddIndex:
-			sql, err = a.buildAddIndexSQL(schemaName, tableName, action.Index)
+			alterSql, err = a.buildAddIndexSQL(schemaName, tableName, action.Index)
 		case model.AlterActionDropIndex:
-			sql = fmt.Sprintf(`DROP INDEX "%s"."%s"`, schemaName, strings.ToUpper(action.OldName))
+			alterSql = fmt.Sprintf(`DROP INDEX "%s"."%s"`, schemaName, strings.ToUpper(action.OldName))
 		default:
 			return fmt.Errorf("unsupported action type: %s", action.Type)
 		}
@@ -794,8 +809,8 @@ func (a *DMAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) err
 			return fmt.Errorf("build SQL failed: %w", err)
 		}
 
-		if sql != "" {
-			if _, err := db.Exec(sql); err != nil {
+		if alterSql != "" {
+			if _, err := dbSQL.Exec(alterSql); err != nil {
 				return fmt.Errorf("execute SQL failed: %w", err)
 			}
 		}
@@ -904,11 +919,12 @@ func (a *DMAdapter) buildAddIndexSQL(schema, table string, idx *model.IndexDef) 
 }
 
 // RenameTable 重命名表
-func (a *DMAdapter) RenameTable(db *sql.DB, database, oldName, newName string) error {
-	sql := fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`,
+func (a *DMAdapter) RenameTable(db any, database, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
+	renameSql := fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`,
 		strings.ToUpper(database),
 		strings.ToUpper(oldName),
 		strings.ToUpper(newName))
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(renameSql)
 	return err
 }

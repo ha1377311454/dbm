@@ -2,10 +2,11 @@ package monitor
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"dbm/internal/adapter"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/yaml.v3"
@@ -92,9 +93,9 @@ func (s *DefaultScraper) Help() string {
 }
 
 // Scrape 执行采集
-func (s *DefaultScraper) Scrape(ctx context.Context, db *sql.DB, ch chan<- prometheus.Metric, config ScraperConfig) error {
+func (s *DefaultScraper) Scrape(ctx context.Context, adp adapter.DatabaseAdapter, db any, ch chan<- prometheus.Metric, config ScraperConfig) error {
 	for _, mc := range s.config.Metrics {
-		if err := s.scrapeMetric(ctx, db, ch, config, mc); err != nil {
+		if err := s.scrapeMetric(ctx, adp, db, ch, config, mc); err != nil {
 			return fmt.Errorf("scrape metric[%s] failed: %w", mc.Context, err)
 		}
 	}
@@ -102,7 +103,7 @@ func (s *DefaultScraper) Scrape(ctx context.Context, db *sql.DB, ch chan<- prome
 }
 
 // scrapeMetric 采集单个指标
-func (s *DefaultScraper) scrapeMetric(ctx context.Context, db *sql.DB, ch chan<- prometheus.Metric, scraperConfig ScraperConfig, metric Metric) error {
+func (s *DefaultScraper) scrapeMetric(ctx context.Context, adp adapter.DatabaseAdapter, db any, ch chan<- prometheus.Metric, scraperConfig ScraperConfig, metric Metric) error {
 	// 定义行解析函数
 	parseRow := func(row map[string]string) error {
 		// 提取标签值
@@ -145,7 +146,7 @@ func (s *DefaultScraper) scrapeMetric(ctx context.Context, db *sql.DB, ch chan<-
 	}
 
 	// 执行查询并解析
-	if err := QueryAndParse(ctx, db, parseRow, metric.Request); err != nil {
+	if err := QueryAndParse(ctx, adp, db, parseRow, metric.Request, scraperConfig); err != nil {
 		return err
 	}
 

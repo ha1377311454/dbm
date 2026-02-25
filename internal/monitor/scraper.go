@@ -2,7 +2,7 @@ package monitor
 
 import (
 	"context"
-	"database/sql"
+	"dbm/internal/adapter"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -17,10 +17,11 @@ type Scraper interface {
 
 	// Scrape 从数据库连接采集指标并发送到 channel
 	// ctx: 上下文，用于超时控制
+	// adp: 数据库适配器
 	// db: 数据库连接
 	// ch: Prometheus 指标 channel
 	// config: 连接配置信息
-	Scrape(ctx context.Context, db *sql.DB, ch chan<- prometheus.Metric, config ScraperConfig) error
+	Scrape(ctx context.Context, adp adapter.DatabaseAdapter, db any, ch chan<- prometheus.Metric, config ScraperConfig) error
 }
 
 // ScraperConfig 采集器配置

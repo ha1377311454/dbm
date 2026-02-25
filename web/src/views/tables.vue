@@ -174,7 +174,6 @@ const loading = ref(false)
 // Data Editing State
 const dialogVisible = ref(false)
 const currentRow = ref<Record<string, any>>({})
-const formRef = ref()
 const editForm = ref<Record<string, any>>({})
 
 // Search State
@@ -184,6 +183,12 @@ const searchVal = ref('')
 const columns = computed(() => {
   return queryStore.currentSchema?.columns || []
 })
+
+const connection = computed(() => 
+  connectionsStore.connections.find(c => c.id === currentConnectionId.value)
+)
+
+const dbType = computed(() => connection.value?.type)
 
 const primaryKeys = computed(() => {
   if (!queryStore.currentSchema) return []
@@ -250,13 +255,20 @@ async function handleTableClick(row: any) {
 async function loadPreview(tableName: string) {
   loading.value = true
   try {
-    let sql = `SELECT * FROM ${tableName}`
-    if (searchCol.value && searchVal.value) {
-      sql += ` WHERE \`${searchCol.value}\` LIKE '%${searchVal.value}%'`
+    let query = ''
+    if (dbType.value === 'mongodb') {
+      // For MongoDB, we can just send the collection name
+      // The backend will wrap it in a find command
+      query = tableName
+    } else {
+      query = `SELECT * FROM ${tableName}`
+      if (searchCol.value && searchVal.value) {
+        query += ` WHERE \`${searchCol.value}\` LIKE '%${searchVal.value}%'`
+      }
+      query += ' LIMIT 100'
     }
-    sql += ' LIMIT 100'
 
-    await queryStore.executeQuery(currentConnectionId.value, sql, {
+    await queryStore.executeQuery(currentConnectionId.value, query, {
       database: currentDatabase.value
     })
     if (queryStore.result) {

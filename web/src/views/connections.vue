@@ -159,6 +159,7 @@
             <el-option label="ClickHouse" value="clickhouse" />
             <el-option label="KingBase" value="kingbase" />
             <el-option label="达梦数据库" value="dm" />
+            <el-option label="MongoDB" value="mongodb" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="formData.type === 'clickhouse'" label="协议">
@@ -409,6 +410,14 @@ const DMIcon = {
   }
 }
 
+const MongodbIcon = {
+  render() {
+    return h('svg', { viewBox: '0 0 128 128', width: '16', height: '16', style: 'margin-right: 8px;' }, [
+      h('path', { fill: '#47A248', d: 'M87.5 120.3c-2.4 3.7-5.9 5.5-10.4 5.2-12-.7-23.7-4.1-34-10.4-1.7-1-3-2.3-4.1-3.9-.1-.2-.2-.3-.2-.5 0-.1.1-.3.2-.4l1.3-1.1c.3-.3.8-.4 1.1-.1.1.1.2.2.3.4 1 1.4 2.2 2.6 3.6 3.5 9.8 6 20.9 9.3 32.3 9.9 3.5.2 6.1-1.2 7.1-4.7 9.1-33.5.7-77.9-20.7-111.9-.3-.5-.4-.9-.1-1.4.3-.5.8-.8 1.4-.8h.2c16.3.3 32.5 10.1 42.4 26.6 4.9 8.1 7.2 17.6 6.8 27.4-.7 18.2-9 38.6-26.5 62.1zm-32.9.2c-2.5-16.7-2.3-33.7.6-50.3 3.6-20.5 11.2-39.7 22.1-57.1.3-.5.3-1 .1-1.4-.2-.5-.6-.8-1.2-.9h-.5c-20.1 1.5-38.3 11-50.6 26.3-5.3 6.6-8.9 14.3-10.3 22.5-.9 5.2-.9 11 0 16.5 2.1 13.9 9 27.1 19.3 36.8 6.4 6 13.8 10.4 20.5 7.6zM63 4c-1.3 2.1-2.5 4.3-3.6 6.5-.1.3-.2.6-.2.9 0 .4.2.8.5 1.1 5.4 4.8 11.2 9.1 17.3 12.8.4.2.9.3 1.3.1.4-.2.7-.6.8-1 1.4-3.7 2.4-7.5 3-11.4.1-.2 0-.4-.1-.6-.1-.2-.2-.3-.4-.4C77 9.8 71.9 6.8 66.5 4c-.5-.3-1.1-.3-1.6 0-.5.3-1 .6-1.5 1h-.4z' })
+    ])
+  }
+}
+
 function getDatabaseIcon(type: string) {
   const icons: Record<string, any> = {
     mysql: MysqlIcon,
@@ -416,7 +425,8 @@ function getDatabaseIcon(type: string) {
     sqlite: SqliteIcon,
     clickhouse: ClickHouseIcon,
     kingbase: Monitor,
-    dm: DMIcon
+    dm: DMIcon,
+    mongodb: MongodbIcon
   }
   return icons[type] || Monitor
 }
@@ -479,7 +489,8 @@ function getDatabaseTypeName(type: string) {
     sqlite: 'SQLite',
     clickhouse: 'ClickHouse',
     kingbase: 'KingBase',
-    dm: '达梦数据库'
+    dm: '达梦数据库',
+    mongodb: 'MongoDB'
   }
   return names[type] || type
 }
@@ -491,7 +502,8 @@ function getDatabaseTypeColor(type: string) {
     sqlite: 'info',
     clickhouse: 'warning',
     kingbase: 'danger',
-    dm: 'danger'
+    dm: 'danger',
+    mongodb: 'success'
   }
   return colors[type] || ''
 }
@@ -721,6 +733,8 @@ function handleDbTypeChange(val: DatabaseType) {
     formData.port = 9000
     if (!formData.params) formData.params = {}
     formData.params.protocol = 'clickhouse'
+  } else if (val === 'mongodb') {
+    formData.port = 27017
   }
 }
 

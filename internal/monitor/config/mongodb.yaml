@@ -1,0 +1,17 @@
+# MongoDB 数据库监控指标配置
+metrics:
+  # 服务状态指标
+  - context: server_status
+    labels: ["version"]
+    metricsdesc:
+      uptime: "Gauge metric with uptime of database in seconds."
+      connections_current: "Gauge metric with current number of connections."
+      connections_available: "Gauge metric with available connections."
+    metricstype:
+      uptime: gauge
+      connections_current: gauge
+      connections_available: gauge
+    # MongoDB Query implementation maps this string to a RunCommand
+    # If it starts with { it is treated as extended JSON command
+    request: |
+      { "serverStatus": 1 }

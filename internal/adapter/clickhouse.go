@@ -27,7 +27,7 @@ func NewClickHouseAdapter() *ClickHouseAdapter {
 }
 
 // Connect 连接 ClickHouse 数据库
-func (a *ClickHouseAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error) {
+func (a *ClickHouseAdapter) Connect(config *model.ConnectionConfig) (any, error) {
 	dsn := a.buildDSN(config)
 	db, err := sql.Open("clickhouse", dsn)
 	if err != nil {
@@ -97,17 +97,18 @@ func (a *ClickHouseAdapter) buildDSN(config *model.ConnectionConfig) string {
 }
 
 // Close 关闭连接
-func (a *ClickHouseAdapter) Close(db *sql.DB) error {
-	return db.Close()
+func (a *ClickHouseAdapter) Close(db any) error {
+	return db.(*sql.DB).Close()
 }
 
 // Ping 测试连接
-func (a *ClickHouseAdapter) Ping(db *sql.DB) error {
-	return db.Ping()
+func (a *ClickHouseAdapter) Ping(db any) error {
+	return db.(*sql.DB).Ping()
 }
 
 // GetDatabases 获取数据库列表
-func (a *ClickHouseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
+func (a *ClickHouseAdapter) GetDatabases(db any) ([]string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT name
 		FROM system.databases
@@ -115,7 +116,7 @@ func (a *ClickHouseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 		ORDER BY name
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,8 @@ func (a *ClickHouseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 }
 
 // GetTables 获取表列表
-func (a *ClickHouseAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *ClickHouseAdapter) GetTables(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			name,
@@ -147,7 +149,7 @@ func (a *ClickHouseAdapter) GetTables(db *sql.DB, database string) ([]model.Tabl
 		ORDER BY name
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +179,8 @@ func (a *ClickHouseAdapter) GetTables(db *sql.DB, database string) ([]model.Tabl
 }
 
 // GetTableSchema 获取表结构
-func (a *ClickHouseAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error) {
+func (a *ClickHouseAdapter) GetTableSchema(db any, database, table string) (*model.TableSchema, error) {
+	dbSQL := db.(*sql.DB)
 	schema := &model.TableSchema{
 		Database: database,
 		Table:    table,
@@ -196,7 +199,7 @@ func (a *ClickHouseAdapter) GetTableSchema(db *sql.DB, database, table string) (
 		ORDER BY position
 	`
 
-	colsRows, err := db.Query(colsQuery, database, table)
+	colsRows, err := dbSQL.Query(colsQuery, database, table)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +226,8 @@ func (a *ClickHouseAdapter) GetTableSchema(db *sql.DB, database, table string) (
 }
 
 // GetViews 获取视图列表
-func (a *ClickHouseAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *ClickHouseAdapter) GetViews(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			name,
@@ -235,7 +239,7 @@ func (a *ClickHouseAdapter) GetViews(db *sql.DB, database string) ([]model.Table
 		ORDER BY name
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -257,10 +261,11 @@ func (a *ClickHouseAdapter) GetViews(db *sql.DB, database string) ([]model.Table
 }
 
 // GetViewDefinition 获取视图定义
-func (a *ClickHouseAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+func (a *ClickHouseAdapter) GetViewDefinition(db any, database, viewName string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := fmt.Sprintf("SHOW CREATE VIEW `%s`.`%s`", database, viewName)
-	row := db.QueryRow(query)
+	row := dbSQL.QueryRow(query)
 
 	if err := row.Scan(&definition); err != nil {
 		return "", err
@@ -270,23 +275,23 @@ func (a *ClickHouseAdapter) GetViewDefinition(db *sql.DB, database, viewName str
 }
 
 // GetProcedures 获取存储过程列表（ClickHouse 不支持传统的存储过程）
-func (a *ClickHouseAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *ClickHouseAdapter) GetProcedures(db any, database string) ([]model.RoutineInfo, error) {
 	return []model.RoutineInfo{}, nil
 }
 
 // GetFunctions 获取函数列表
 // ClickHouse 有 UDF 但系统表里通常不在这里展示为 schema 层面的 routine，暂不实现
-func (a *ClickHouseAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *ClickHouseAdapter) GetFunctions(db any, database string) ([]model.RoutineInfo, error) {
 	return []model.RoutineInfo{}, nil
 }
 
 // GetRoutineDefinition 获取存储过程或函数定义（ClickHouse 不支持）
-func (a *ClickHouseAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+func (a *ClickHouseAdapter) GetRoutineDefinition(db any, database, routineName, routineType string) (string, error) {
 	return "", fmt.Errorf("ClickHouse doesn't support viewing routine definition natively")
 }
 
 // GetIndexes 获取索引列表
-func (a *ClickHouseAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
+func (a *ClickHouseAdapter) GetIndexes(db any, database, table string) ([]model.IndexInfo, error) {
 	// ClickHouse 索引概念不同，通常指 Skipping Indexes 或 Primary Key
 	// 这里简单返回主键作为索引
 	schema, err := a.GetTableSchema(db, database, table)
@@ -316,10 +321,11 @@ func (a *ClickHouseAdapter) GetIndexes(db *sql.DB, database, table string) ([]mo
 }
 
 // Execute 执行非查询 SQL
-func (a *ClickHouseAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error) {
+func (a *ClickHouseAdapter) Execute(db any, query string, args ...interface{}) (*model.ExecuteResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
-	result, err := db.Exec(query, args...)
+	result, err := dbSQL.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +340,8 @@ func (a *ClickHouseAdapter) Execute(db *sql.DB, query string, args ...interface{
 }
 
 // Query 执行查询
-func (a *ClickHouseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+func (a *ClickHouseAdapter) Query(db any, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
 	trimQuery := strings.TrimSpace(strings.ToUpper(query))
@@ -346,7 +353,7 @@ func (a *ClickHouseAdapter) Query(db *sql.DB, query string, opts *model.QueryOpt
 		strings.HasPrefix(trimQuery, "WATCH")
 
 	if !isQuery {
-		result, err := db.Exec(query)
+		result, err := dbSQL.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +365,7 @@ func (a *ClickHouseAdapter) Query(db *sql.DB, query string, opts *model.QueryOpt
 		}, nil
 	}
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +426,8 @@ func (a *ClickHouseAdapter) Query(db *sql.DB, query string, opts *model.QueryOpt
 }
 
 // Insert 插入数据（ClickHouse 通常不建议单条插入，但在管控工具中支持）
-func (a *ClickHouseAdapter) Insert(db *sql.DB, database, table string, data map[string]interface{}) error {
+func (a *ClickHouseAdapter) Insert(db any, database, table string, data map[string]interface{}) error {
+	dbSQL := db.(*sql.DB)
 	columns := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]interface{}, 0, len(data))
@@ -430,17 +438,18 @@ func (a *ClickHouseAdapter) Insert(db *sql.DB, database, table string, data map[
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s)",
+	insertSql := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES (%s)",
 		database, table,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(insertSql, values...)
 	return err
 }
 
 // Update 更新数据 (ClickHouse 使用 ALTER TABLE ... UPDATE)
-func (a *ClickHouseAdapter) Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error {
+func (a *ClickHouseAdapter) Update(db any, database, table string, data map[string]interface{}, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("更新操作必须指定 WHERE 条件")
 	}
@@ -453,31 +462,33 @@ func (a *ClickHouseAdapter) Update(db *sql.DB, database, table string, data map[
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf("ALTER TABLE `%s`.`%s` UPDATE %s WHERE %s",
+	updateSql := fmt.Sprintf("ALTER TABLE `%s`.`%s` UPDATE %s WHERE %s",
 		database, table,
 		strings.Join(sets, ", "),
 		where)
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(updateSql, values...)
 	return err
 }
 
 // Delete 删除数据 (ClickHouse 使用 ALTER TABLE ... DELETE)
-func (a *ClickHouseAdapter) Delete(db *sql.DB, database, table, where string) error {
+func (a *ClickHouseAdapter) Delete(db any, database, table, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("删除操作必须指定 WHERE 条件")
 	}
 
-	query := fmt.Sprintf("ALTER TABLE `%s`.`%s` DELETE WHERE %s", database, table, where)
-	_, err := db.Exec(query)
+	deleteSql := fmt.Sprintf("ALTER TABLE `%s`.`%s` DELETE WHERE %s", database, table, where)
+	_, err := dbSQL.Exec(deleteSql)
 	return err
 }
 
 // ExportToCSV 导出为 CSV
-func (a *ClickHouseAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+func (a *ClickHouseAdapter) ExportToCSV(db any, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewCSVExporter(opts)
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return err
 	}
@@ -523,7 +534,7 @@ func (a *ClickHouseAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, 
 }
 
 // ExportToSQL 导出为 SQL
-func (a *ClickHouseAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+func (a *ClickHouseAdapter) ExportToSQL(db any, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
 	exporter := export.NewSQLExporter(opts, model.DatabaseClickHouse)
 
 	for _, table := range tables {
@@ -559,16 +570,18 @@ func (a *ClickHouseAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database s
 }
 
 // GetCreateTableSQL 获取建表语句
-func (a *ClickHouseAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (string, error) {
+func (a *ClickHouseAdapter) GetCreateTableSQL(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	query := fmt.Sprintf("SHOW CREATE TABLE `%s`.`%s` ", database, table)
 	var createSQL string
-	err := db.QueryRow(query).Scan(&createSQL)
+	err := dbSQL.QueryRow(query).Scan(&createSQL)
 	return createSQL, err
 }
 
 // AlterTable 修改表结构
 // 注意：对于 ReplicatedMergeTree 表，ALTER 操作会自动通过 ZooKeeper 同步到所有副本
-func (a *ClickHouseAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) error {
+func (a *ClickHouseAdapter) AlterTable(db any, request *model.AlterTableRequest) error {
+	dbSQL := db.(*sql.DB)
 	if len(request.Actions) == 0 {
 		return fmt.Errorf("no actions specified")
 	}
@@ -603,12 +616,12 @@ func (a *ClickHouseAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequ
 	// 1. 在 ZooKeeper 中创建一个任务
 	// 2. 所有副本会自动执行这个 ALTER 操作
 	// 3. 操作是异步的，可能需要一些时间完成
-	sql := fmt.Sprintf("ALTER TABLE `%s`.`%s` %s",
+	alterSql := fmt.Sprintf("ALTER TABLE `%s`.`%s` %s",
 		request.Database,
 		request.Table,
 		strings.Join(alterClauses, ", "))
 
-	_, err = db.Exec(sql)
+	_, err = dbSQL.Exec(alterSql)
 	if err != nil {
 		return err
 	}
@@ -624,10 +637,11 @@ func (a *ClickHouseAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequ
 }
 
 // getTableEngine 获取表引擎类型
-func (a *ClickHouseAdapter) getTableEngine(db *sql.DB, database, table string) (string, error) {
+func (a *ClickHouseAdapter) getTableEngine(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `SELECT engine FROM system.tables WHERE database = ? AND name = ?`
 	var engine string
-	err := db.QueryRow(query, database, table).Scan(&engine)
+	err := dbSQL.QueryRow(query, database, table).Scan(&engine)
 	return engine, err
 }
 
@@ -728,7 +742,8 @@ func (a *ClickHouseAdapter) formatDefaultValue(value string) string {
 // RenameTable 重命名表
 // 注意：对于 ReplicatedMergeTree 表，RENAME 操作不会通过 ZooKeeper 同步
 // 需要在所有副本上分别执行
-func (a *ClickHouseAdapter) RenameTable(db *sql.DB, database, oldName, newName string) error {
+func (a *ClickHouseAdapter) RenameTable(db any, database, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
 	// 检查是否为复制表
 	engineType, err := a.getTableEngine(db, database, oldName)
 	if err != nil {
@@ -739,14 +754,15 @@ func (a *ClickHouseAdapter) RenameTable(db *sql.DB, database, oldName, newName s
 		return fmt.Errorf("RENAME TABLE is not supported for replicated tables via ZooKeeper. You must rename on each replica separately")
 	}
 
-	sql := fmt.Sprintf("RENAME TABLE `%s`.`%s` TO `%s`.`%s`",
+	renameSql := fmt.Sprintf("RENAME TABLE `%s`.`%s` TO `%s`.`%s`",
 		database, oldName, database, newName)
-	_, err = db.Exec(sql)
+	_, err = dbSQL.Exec(renameSql)
 	return err
 }
 
 // CheckMutationStatus 检查 ALTER 操作的执行状态（用于复制表）
-func (a *ClickHouseAdapter) CheckMutationStatus(db *sql.DB, database, table string) ([]map[string]interface{}, error) {
+func (a *ClickHouseAdapter) CheckMutationStatus(db any, database, table string) ([]map[string]interface{}, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			mutation_id,
@@ -760,7 +776,7 @@ func (a *ClickHouseAdapter) CheckMutationStatus(db *sql.DB, database, table stri
 		LIMIT 10
 	`
 
-	rows, err := db.Query(query, database, table)
+	rows, err := dbSQL.Query(query, database, table)
 	if err != nil {
 		return nil, err
 	}

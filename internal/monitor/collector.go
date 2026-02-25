@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -164,10 +165,21 @@ func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.M
 		c.sendScrapeFailure(ch, config, fmt.Sprintf("Connection failed: %v", err))
 		return
 	}
-	defer db.Close()
+	defer func() {
+		if closer, ok := db.(io.Closer); ok {
+			closer.Close()
+		}
+	}()
+
+	// 获取适配器用于 Ping
+	dbAdapter, err := c.factory.CreateAdapter(config.Type)
+	if err != nil {
+		c.sendScrapeFailure(ch, config, fmt.Sprintf("Failed to get adapter: %v", err))
+		return
+	}
 
 	// 测试连接
-	if err := db.PingContext(ctx); err != nil {
+	if err := dbAdapter.Ping(db); err != nil {
 		// Ping 失败，记录 up=0
 		ch <- prometheus.MustNewConstMetric(
 			upDesc,
@@ -209,7 +221,7 @@ func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.M
 
 	// 执行所有采集器
 	for _, scraper := range scrapers {
-		if err := scraper.Scrape(ctx, db, ch, scraperConfig); err != nil {
+		if err := scraper.Scrape(ctx, dbAdapter, db, ch, scraperConfig); err != nil {
 			// 记录采集失败
 			c.sendScrapeFailure(ch, config, fmt.Sprintf("Scraper[%s] failed: %v", scraper.Name(), err))
 		}
@@ -217,7 +229,7 @@ func (c *Collector) scrapeConnection(ctx context.Context, ch chan<- prometheus.M
 }
 
 // createConnection 创建新的数据库连接
-func (c *Collector) createConnection(config *model.ConnectionConfig) (*sql.DB, error) {
+func (c *Collector) createConnection(config *model.ConnectionConfig) (any, error) {
 	// 获取适配器
 	dbAdapter, err := c.factory.CreateAdapter(config.Type)
 	if err != nil {
@@ -231,9 +243,11 @@ func (c *Collector) createConnection(config *model.ConnectionConfig) (*sql.DB, e
 	}
 
 	// 设置连接参数（用于采集，限制连接数）
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	if dbSQL, ok := db.(*sql.DB); ok {
+		dbSQL.SetMaxOpenConns(1)
+		dbSQL.SetMaxIdleConns(1)
+		dbSQL.SetConnMaxLifetime(5 * time.Minute)
+	}
 
 	return db, nil
 }

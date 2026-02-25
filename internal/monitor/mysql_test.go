@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"dbm/internal/adapter"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -120,7 +122,8 @@ func TestMySQLScraper(t *testing.T) {
 		DBType: "mysql",
 	}
 
-	err := scraper.Scrape(ctx, db, ch, scraperConfig)
+	adp := adapter.NewMySQLAdapter()
+	err := scraper.Scrape(ctx, adp, db, ch, scraperConfig)
 	require.NoError(t, err, "Scrape should not return error")
 
 	close(ch)
@@ -182,7 +185,8 @@ func TestMySQLScraperUptime(t *testing.T) {
 		DBType: "mysql",
 	}
 
-	err := scraper.Scrape(ctx, db, ch, scraperConfig)
+	adp := adapter.NewMySQLAdapter()
+	err := scraper.Scrape(ctx, adp, db, ch, scraperConfig)
 	require.NoError(t, err)
 
 	close(ch)
@@ -241,7 +245,8 @@ func TestMySQLScraperSessions(t *testing.T) {
 		DBType: "mysql",
 	}
 
-	err := scraper.Scrape(ctx, db, ch, scraperConfig)
+	adp := adapter.NewMySQLAdapter()
+	err := scraper.Scrape(ctx, adp, db, ch, scraperConfig)
 	require.NoError(t, err)
 
 	close(ch)
@@ -304,7 +309,11 @@ func TestQueryAndParse(t *testing.T) {
 	}
 
 	query := "SELECT VERSION() AS version, NOW() AS now"
-	err := QueryAndParse(ctx, db, parseFunc, query)
+	adp := adapter.NewMySQLAdapter()
+	scraperConfig := ScraperConfig{
+		Labels: map[string]string{"database": ""},
+	}
+	err := QueryAndParse(ctx, adp, db, parseFunc, query, scraperConfig)
 	require.NoError(t, err, "QueryAndParse should not return error")
 	assert.Equal(t, 1, callCount, "Should have called parseFunc once")
 }

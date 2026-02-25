@@ -1,9 +1,9 @@
 package connection
 
 import (
-	"database/sql"
 	"dbm/internal/model"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,7 +12,7 @@ import (
 // Manager 连接管理器
 type Manager struct {
 	mu                 sync.RWMutex
-	connections        map[string]*sql.DB // key: connectionID
+	connections        map[string]any // key: connectionID
 	configs            map[string]*model.ConnectionConfig
 	decryptedPasswords map[string]string       // 缓存解密后的密码，避免频繁调用昂贵的 Argon2
 	groups             map[string]*model.Group // key: groupID
@@ -28,7 +28,7 @@ func NewManager(dataPath, encryptionKey string) (*Manager, error) {
 	}
 
 	m := &Manager{
-		connections:        make(map[string]*sql.DB),
+		connections:        make(map[string]any),
 		configs:            make(map[string]*model.ConnectionConfig),
 		decryptedPasswords: make(map[string]string),
 		groups:             make(map[string]*model.Group),
@@ -79,7 +79,9 @@ func (m *Manager) RemoveConnection(id string) error {
 
 	// 关闭数据库连接
 	if db, exists := m.connections[id]; exists {
-		_ = db.Close()
+		if closer, ok := db.(io.Closer); ok {
+			_ = closer.Close()
+		}
 		delete(m.connections, id)
 	}
 
@@ -91,7 +93,7 @@ func (m *Manager) RemoveConnection(id string) error {
 }
 
 // GetConnection 获取已缓存的数据库连接
-func (m *Manager) GetConnection(id string) (*sql.DB, *model.ConnectionConfig, error) {
+func (m *Manager) GetConnection(id string) (any, *model.ConnectionConfig, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -109,7 +111,7 @@ func (m *Manager) GetConnection(id string) (*sql.DB, *model.ConnectionConfig, er
 }
 
 // PutConnection 将连接放入管理器
-func (m *Manager) PutConnection(id string, db *sql.DB) {
+func (m *Manager) PutConnection(id string, db any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.connections[id] = db
@@ -121,7 +123,10 @@ func (m *Manager) CloseConnection(id string) error {
 	defer m.mu.Unlock()
 
 	if db, exists := m.connections[id]; exists {
-		err := db.Close()
+		var err error
+		if closer, ok := db.(io.Closer); ok {
+			err = closer.Close()
+		}
 		delete(m.connections, id)
 		return err
 	}
@@ -192,7 +197,9 @@ func (m *Manager) Close() error {
 	defer m.mu.Unlock()
 
 	for id, db := range m.connections {
-		_ = db.Close()
+		if closer, ok := db.(io.Closer); ok {
+			_ = closer.Close()
+		}
 		delete(m.connections, id)
 	}
 

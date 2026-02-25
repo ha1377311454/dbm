@@ -113,7 +113,11 @@
               :label="col"
               min-width="120"
               show-overflow-tooltip
-            />
+            >
+              <template #default="{ row }">
+                {{ formatCellValue(row[col]) }}
+              </template>
+            </el-table-column>
           </el-table>
           <div v-else class="empty-result">
             <el-empty :description="queryStore.result.message || '执行成功，无返回数据'" />
@@ -203,6 +207,19 @@ const filterNode = (value: string, data: TreeNode) => {
 
 const resultSearch = ref('')
 const selectedTable = ref('')
+
+const connection = computed(() => 
+  connectionsStore.connections.find(c => c.id === currentConnectionId.value)
+)
+
+const dbType = computed(() => connection.value?.type)
+
+watch(dbType, (newType) => {
+  if (editor) {
+    const language = newType === 'mongodb' ? 'json' : 'sql'
+    monaco.editor.setModelLanguage(editor.getModel()!, language)
+  }
+})
 
 // 拖拽调整左侧栏宽度
 function startResize(e: MouseEvent) {
@@ -545,7 +562,7 @@ function initEditor() {
 
   editor = monaco.editor.create(editorContainer.value, {
     value: '',
-    language: 'sql',
+    language: dbType.value === 'mongodb' ? 'json' : 'sql',
     theme: 'vs-dark',
     minimap: { enabled: false },
     fontSize: 14,
@@ -579,7 +596,7 @@ async function handleExecute() {
 
   const query = editor?.getValue()
   if (!query || query.trim() === '') {
-    ElMessage.warning('请输入 SQL 语句')
+    ElMessage.warning(dbType.value === 'mongodb' ? '请输入查询命令' : '请输入 SQL 语句')
     return
   }
 
@@ -608,11 +625,16 @@ function handleBeautify() {
   if (!sql) return
 
   try {
-    const formatted = format(sql, {
-      language: 'sql',
-      keywordCase: 'upper'
-    })
-    editor.setValue(formatted)
+    if (dbType.value === 'mongodb') {
+      const obj = JSON.parse(sql)
+      editor.setValue(JSON.stringify(obj, null, 2))
+    } else {
+      const formatted = format(sql, {
+        language: 'sql',
+        keywordCase: 'upper'
+      })
+      editor.setValue(formatted)
+    }
   } catch (e: any) {
     ElMessage.error('格式化失败: ' + e.message)
   }
@@ -620,10 +642,19 @@ function handleBeautify() {
 
 function handleTableClick(tableName: string) {
   selectedTable.value = tableName
-  // 如果有 schema，在表名前添加 schema 前缀
   const tableRef = currentSchema.value ? `${currentSchema.value}.${tableName}` : tableName
-  const sql = `SELECT * FROM ${tableRef} LIMIT 100;`
-  editor?.setValue(sql)
+  
+  if (dbType.value === 'mongodb') {
+    const template = {
+      find: tableName,
+      filter: {},
+      limit: 100
+    }
+    editor?.setValue(JSON.stringify(template, null, 2))
+  } else {
+    const sql = `SELECT * FROM ${tableRef} LIMIT 100;`
+    editor?.setValue(sql)
+  }
 }
 
 async function handleViewClick(viewName: string) {
@@ -767,6 +798,14 @@ async function handleAddDataSubmit() {
   } finally {
     submittingData.value = false
   }
+}
+
+function formatCellValue(val: any) {
+  if (val === null || val === undefined) return ''
+  if (typeof val === 'object') {
+    return JSON.stringify(val)
+  }
+  return val
 }
 </script>
 

@@ -25,7 +25,7 @@ func NewMySQLAdapter() *MySQLAdapter {
 }
 
 // Connect 连接 MySQL 数据库
-func (a *MySQLAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error) {
+func (a *MySQLAdapter) Connect(config *model.ConnectionConfig) (any, error) {
 	dsn := a.buildDSN(config)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -72,17 +72,18 @@ func (a *MySQLAdapter) buildDSN(config *model.ConnectionConfig) string {
 }
 
 // Close 关闭连接
-func (a *MySQLAdapter) Close(db *sql.DB) error {
-	return db.Close()
+func (a *MySQLAdapter) Close(db any) error {
+	return db.(*sql.DB).Close()
 }
 
 // Ping 测试连接
-func (a *MySQLAdapter) Ping(db *sql.DB) error {
-	return db.Ping()
+func (a *MySQLAdapter) Ping(db any) error {
+	return db.(*sql.DB).Ping()
 }
 
 // GetDatabases 获取数据库列表
-func (a *MySQLAdapter) GetDatabases(db *sql.DB) ([]string, error) {
+func (a *MySQLAdapter) GetDatabases(db any) ([]string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT SCHEMA_NAME
 		FROM INFORMATION_SCHEMA.SCHEMATA
@@ -90,7 +91,7 @@ func (a *MySQLAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 		ORDER BY SCHEMA_NAME
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,8 @@ func (a *MySQLAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 }
 
 // GetTables 获取表列表
-func (a *MySQLAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *MySQLAdapter) GetTables(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			TABLE_NAME,
@@ -123,7 +125,7 @@ func (a *MySQLAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo
 		ORDER BY TABLE_NAME
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +148,8 @@ func (a *MySQLAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo
 }
 
 // GetTableSchema 获取表结构
-func (a *MySQLAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error) {
+func (a *MySQLAdapter) GetTableSchema(db any, database, table string) (*model.TableSchema, error) {
+	dbSQL := db.(*sql.DB)
 	schema := &model.TableSchema{
 		Database: database,
 		Table:    table,
@@ -167,7 +170,7 @@ func (a *MySQLAdapter) GetTableSchema(db *sql.DB, database, table string) (*mode
 		ORDER BY ORDINAL_POSITION
 	`
 
-	colsRows, err := db.Query(colsQuery, database, table)
+	colsRows, err := dbSQL.Query(colsQuery, database, table)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +202,7 @@ func (a *MySQLAdapter) GetTableSchema(db *sql.DB, database, table string) (*mode
 		ORDER BY INDEX_NAME, SEQ_IN_INDEX
 	`
 
-	idxRows, err := db.Query(idxQuery, database, table)
+	idxRows, err := dbSQL.Query(idxQuery, database, table)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +234,8 @@ func (a *MySQLAdapter) GetTableSchema(db *sql.DB, database, table string) (*mode
 }
 
 // GetViews 获取视图列表
-func (a *MySQLAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *MySQLAdapter) GetViews(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			TABLE_NAME,
@@ -242,7 +246,7 @@ func (a *MySQLAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo,
 		ORDER BY TABLE_NAME
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +267,8 @@ func (a *MySQLAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo,
 }
 
 // GetProcedures 获取存储过程列表
-func (a *MySQLAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *MySQLAdapter) GetProcedures(db any, database string) ([]model.RoutineInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			ROUTINE_NAME,
@@ -273,7 +278,7 @@ func (a *MySQLAdapter) GetProcedures(db *sql.DB, database string) ([]model.Routi
 		ORDER BY ROUTINE_NAME
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -296,10 +301,11 @@ func (a *MySQLAdapter) GetProcedures(db *sql.DB, database string) ([]model.Routi
 }
 
 // GetViewDefinition 获取视图定义
-func (a *MySQLAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+func (a *MySQLAdapter) GetViewDefinition(db any, database, viewName string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := fmt.Sprintf("SHOW CREATE VIEW `%s`.`%s`", database, viewName)
-	row := db.QueryRow(query)
+	row := dbSQL.QueryRow(query)
 
 	var viewNameResult, createViewSQL, characterSet, collationConnection sql.NullString
 	if err := row.Scan(&viewNameResult, &createViewSQL, &characterSet, &collationConnection); err != nil {
@@ -314,7 +320,8 @@ func (a *MySQLAdapter) GetViewDefinition(db *sql.DB, database, viewName string) 
 }
 
 // GetRoutineDefinition 获取存储过程或函数定义
-func (a *MySQLAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+func (a *MySQLAdapter) GetRoutineDefinition(db any, database, routineName, routineType string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	var query string
 	if strings.ToUpper(routineType) == "FUNCTION" {
@@ -323,7 +330,7 @@ func (a *MySQLAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, r
 		query = fmt.Sprintf("SHOW CREATE PROCEDURE `%s`.`%s`", database, routineName)
 	}
 
-	row := db.QueryRow(query)
+	row := dbSQL.QueryRow(query)
 	var routineNameResult, sqlMode, createRoutineSQL, characterSet, collationConnection, databaseCollation sql.NullString
 	if err := row.Scan(&routineNameResult, &sqlMode, &createRoutineSQL, &characterSet, &collationConnection, &databaseCollation); err != nil {
 		return "", err
@@ -337,7 +344,8 @@ func (a *MySQLAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, r
 }
 
 // GetFunctions 获取函数列表
-func (a *MySQLAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *MySQLAdapter) GetFunctions(db any, database string) ([]model.RoutineInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			ROUTINE_NAME,
@@ -347,7 +355,7 @@ func (a *MySQLAdapter) GetFunctions(db *sql.DB, database string) ([]model.Routin
 		ORDER BY ROUTINE_NAME
 	`
 
-	rows, err := db.Query(query, database)
+	rows, err := dbSQL.Query(query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +378,7 @@ func (a *MySQLAdapter) GetFunctions(db *sql.DB, database string) ([]model.Routin
 }
 
 // GetIndexes 获取索引列表
-func (a *MySQLAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
+func (a *MySQLAdapter) GetIndexes(db any, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)
 	if err != nil {
 		return nil, err
@@ -379,10 +387,11 @@ func (a *MySQLAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.I
 }
 
 // Execute 执行非查询 SQL
-func (a *MySQLAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error) {
+func (a *MySQLAdapter) Execute(db any, query string, args ...interface{}) (*model.ExecuteResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
-	result, err := db.Exec(query, args...)
+	result, err := dbSQL.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +406,8 @@ func (a *MySQLAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*
 }
 
 // Query 执行查询
-func (a *MySQLAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+func (a *MySQLAdapter) Query(db any, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
 	trimQuery := strings.TrimSpace(strings.ToUpper(query))
@@ -409,7 +419,7 @@ func (a *MySQLAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions)
 		strings.HasPrefix(trimQuery, "PRAGMA")
 
 	if !isQuery {
-		result, err := db.Exec(query)
+		result, err := dbSQL.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +431,7 @@ func (a *MySQLAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions)
 		}, nil
 	}
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +481,8 @@ func (a *MySQLAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions)
 }
 
 // Insert 插入数据
-func (a *MySQLAdapter) Insert(db *sql.DB, database, table string, data map[string]interface{}) error {
+func (a *MySQLAdapter) Insert(db any, database, table string, data map[string]interface{}) error {
+	dbSQL := db.(*sql.DB)
 	columns := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]interface{}, 0, len(data))
@@ -487,12 +498,13 @@ func (a *MySQLAdapter) Insert(db *sql.DB, database, table string, data map[strin
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(query, values...)
 	return err
 }
 
 // Update 更新数据
-func (a *MySQLAdapter) Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error {
+func (a *MySQLAdapter) Update(db any, database, table string, data map[string]interface{}, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("更新操作必须指定 WHERE 条件")
 	}
@@ -510,26 +522,28 @@ func (a *MySQLAdapter) Update(db *sql.DB, database, table string, data map[strin
 		strings.Join(sets, ", "),
 		where)
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(query, values...)
 	return err
 }
 
 // Delete 删除数据
-func (a *MySQLAdapter) Delete(db *sql.DB, database, table, where string) error {
+func (a *MySQLAdapter) Delete(db any, database, table, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("删除操作必须指定 WHERE 条件")
 	}
 
 	query := fmt.Sprintf("DELETE FROM `%s`.`%s` WHERE %s", database, table, where)
-	_, err := db.Exec(query)
+	_, err := dbSQL.Exec(query)
 	return err
 }
 
 // ExportToCSV 导出为 CSV
-func (a *MySQLAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+func (a *MySQLAdapter) ExportToCSV(db any, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewCSVExporter(opts)
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return err
 	}
@@ -575,12 +589,13 @@ func (a *MySQLAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query
 }
 
 // ExportToSQL 导出为 SQL
-func (a *MySQLAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+func (a *MySQLAdapter) ExportToSQL(db any, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewSQLExporter(opts, model.DatabaseMySQL)
 
 	// 如果提供了自定义查询，则按查询导出
 	if opts.Query != "" {
-		rows, err := db.Query(opts.Query)
+		rows, err := dbSQL.Query(opts.Query)
 		if err != nil {
 			return err
 		}
@@ -665,7 +680,7 @@ func (a *MySQLAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string
 			if opts.MaxRows > 0 {
 				query = fmt.Sprintf("%s LIMIT %d", query, opts.MaxRows)
 			}
-			rows, err := db.Query(query)
+			rows, err := dbSQL.Query(query)
 			if err != nil {
 				return err
 			}
@@ -719,10 +734,11 @@ func (a *MySQLAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string
 }
 
 // GetCreateTableSQL 获取建表语句
-func (a *MySQLAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (string, error) {
+func (a *MySQLAdapter) GetCreateTableSQL(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var createSQL string
 	query := fmt.Sprintf("SHOW CREATE TABLE `%s`.`%s`", database, table)
-	row := db.QueryRow(query)
+	row := dbSQL.QueryRow(query)
 
 	var tableName, createTableSQL sql.NullString
 	if err := row.Scan(&tableName, &createTableSQL); err != nil {
@@ -734,7 +750,8 @@ func (a *MySQLAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (st
 }
 
 // AlterTable 修改表结构
-func (a *MySQLAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) error {
+func (a *MySQLAdapter) AlterTable(db any, request *model.AlterTableRequest) error {
+	dbSQL := db.(*sql.DB)
 	if len(request.Actions) == 0 {
 		return fmt.Errorf("no actions specified")
 	}
@@ -755,7 +772,7 @@ func (a *MySQLAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) 
 		request.Table,
 		strings.Join(alterClauses, ", "))
 
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(sql)
 	return err
 }
 
@@ -896,9 +913,10 @@ func (a *MySQLAdapter) buildAddIndexClause(idx *model.IndexDef) (string, error) 
 }
 
 // RenameTable 重命名表
-func (a *MySQLAdapter) RenameTable(db *sql.DB, database, oldName, newName string) error {
+func (a *MySQLAdapter) RenameTable(db any, database, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
 	sql := fmt.Sprintf("RENAME TABLE `%s`.`%s` TO `%s`.`%s`",
 		database, oldName, database, newName)
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(sql)
 	return err
 }

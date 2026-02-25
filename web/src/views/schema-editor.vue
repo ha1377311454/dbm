@@ -202,12 +202,10 @@ import type {
   ColumnInfo,
   AlterTableAction,
   AlterActionType,
-  ColumnDef,
-  DatabaseType
+  ColumnDef
 } from '@/types'
 
 const route = useRoute()
-const router = useRouter()
 const connectionsStore = useConnectionsStore()
 
 // 路由参数
@@ -282,6 +280,11 @@ const dataTypes = computed(() => {
       { label: '字符串类型', options: ['String', 'FixedString'] },
       { label: '日期时间', options: ['Date', 'DateTime', 'DateTime64'] },
       { label: '其他', options: ['UUID', 'IPv4', 'IPv6'] }
+    )
+  } else if (dbType.value === 'mongodb') {
+    types.push(
+      { label: '基本类型', options: ['String', 'Number', 'Double', 'Int32', 'Int64', 'Decimal128', 'Boolean', 'Date', 'ObjectId', 'Null', 'Regex', 'JavaScript', 'Symbol', 'Timestamp'] },
+      { label: '复杂类型', options: ['Object', 'Array', 'Binary', 'MinKey', 'MaxKey'] }
     )
   }
   
@@ -368,13 +371,8 @@ const handleRenameColumn = (row: ColumnInfo, index: number) => {
 }
 
 // 删除列
-const handleDropColumn = async (row: ColumnInfo, index: number) => {
+const handleDropColumn = async (row: ColumnInfo) => {
   // SQLite 不支持删除列
-  if (dbType.value === 'sqlite') {
-    ElMessage.warning('SQLite 不支持删除列操作')
-    return
-  }
-
   try {
     await ElMessageBox.confirm(`确定要删除列 "${row.name}" 吗？此操作不可恢复！`, '警告', {
       type: 'warning'

@@ -7,7 +7,8 @@ export enum DatabaseType {
   Oracle = 'oracle',
   ClickHouse = 'clickhouse',
   KingBase = 'kingbase',
-  DM = 'dm'
+  DM = 'dm',
+  MongoDB = 'mongodb'
 }
 
 // 连接配置

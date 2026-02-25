@@ -25,7 +25,7 @@ func NewSQLiteAdapter() *SQLiteAdapter {
 }
 
 // Connect 连接 SQLite 数据库
-func (a *SQLiteAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error) {
+func (a *SQLiteAdapter) Connect(config *model.ConnectionConfig) (any, error) {
 	// SQLite 使用 host 字段作为文件路径
 	dbPath := config.Host
 	if dbPath == "" {
@@ -45,23 +45,24 @@ func (a *SQLiteAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error)
 }
 
 // Close 关闭连接
-func (a *SQLiteAdapter) Close(db *sql.DB) error {
-	return db.Close()
+func (a *SQLiteAdapter) Close(db any) error {
+	return db.(*sql.DB).Close()
 }
 
 // Ping 测试连接
-func (a *SQLiteAdapter) Ping(db *sql.DB) error {
-	return db.Ping()
+func (a *SQLiteAdapter) Ping(db any) error {
+	return db.(*sql.DB).Ping()
 }
 
 // GetDatabases 获取数据库列表（SQLite 只有一个数据库文件）
-func (a *SQLiteAdapter) GetDatabases(db *sql.DB) ([]string, error) {
+func (a *SQLiteAdapter) GetDatabases(db any) ([]string, error) {
 	// SQLite 只有一个主数据库
 	return []string{"main"}, nil
 }
 
 // GetTables 获取表列表
-func (a *SQLiteAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *SQLiteAdapter) GetTables(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			name,
@@ -74,7 +75,7 @@ func (a *SQLiteAdapter) GetTables(db *sql.DB, database string) ([]model.TableInf
 		ORDER BY name
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +97,8 @@ func (a *SQLiteAdapter) GetTables(db *sql.DB, database string) ([]model.TableInf
 }
 
 // GetTableSchema 获取表结构
-func (a *SQLiteAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error) {
+func (a *SQLiteAdapter) GetTableSchema(db any, database, table string) (*model.TableSchema, error) {
+	dbSQL := db.(*sql.DB)
 	schema := &model.TableSchema{
 		Database: database,
 		Table:    table,
@@ -104,7 +106,7 @@ func (a *SQLiteAdapter) GetTableSchema(db *sql.DB, database, table string) (*mod
 
 	// 获取列信息（使用 PRAGMA）
 	colsQuery := fmt.Sprintf("PRAGMA table_info(`%s`)", table)
-	colsRows, err := db.Query(colsQuery)
+	colsRows, err := dbSQL.Query(colsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +137,7 @@ func (a *SQLiteAdapter) GetTableSchema(db *sql.DB, database, table string) (*mod
 
 	// 获取索引信息
 	idxQuery := fmt.Sprintf("PRAGMA index_list(`%s`)", table)
-	idxRows, err := db.Query(idxQuery)
+	idxRows, err := dbSQL.Query(idxQuery)
 	if err != nil {
 		return schema, nil
 	}
@@ -152,7 +154,7 @@ func (a *SQLiteAdapter) GetTableSchema(db *sql.DB, database, table string) (*mod
 
 		// 获取索引列
 		colQuery := fmt.Sprintf("PRAGMA index_info(`%s`)", indexName)
-		colRows, _ := db.Query(colQuery)
+		colRows, _ := dbSQL.Query(colQuery)
 		if colRows == nil {
 			continue
 		}
@@ -179,7 +181,8 @@ func (a *SQLiteAdapter) GetTableSchema(db *sql.DB, database, table string) (*mod
 }
 
 // GetViews 获取视图列表
-func (a *SQLiteAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *SQLiteAdapter) GetViews(db any, database string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			name,
@@ -191,7 +194,7 @@ func (a *SQLiteAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo
 		ORDER BY name
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -212,15 +215,16 @@ func (a *SQLiteAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo
 }
 
 // GetProcedures 获取存储过程列表（SQLite 不支持）
-func (a *SQLiteAdapter) GetProcedures(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *SQLiteAdapter) GetProcedures(db any, database string) ([]model.RoutineInfo, error) {
 	return []model.RoutineInfo{}, nil
 }
 
 // GetViewDefinition 获取视图定义
-func (a *SQLiteAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+func (a *SQLiteAdapter) GetViewDefinition(db any, database, viewName string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := `SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?`
-	row := db.QueryRow(query, viewName)
+	row := dbSQL.QueryRow(query, viewName)
 	if err := row.Scan(&definition); err != nil {
 		return "", err
 	}
@@ -228,17 +232,17 @@ func (a *SQLiteAdapter) GetViewDefinition(db *sql.DB, database, viewName string)
 }
 
 // GetRoutineDefinition 获取存储过程或函数定义（SQLite 不支持）
-func (a *SQLiteAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+func (a *SQLiteAdapter) GetRoutineDefinition(db any, database, routineName, routineType string) (string, error) {
 	return "", fmt.Errorf("SQLite doesn't support viewing routine definition natively")
 }
 
 // GetFunctions 获取函数列表（SQLite 不支持）
-func (a *SQLiteAdapter) GetFunctions(db *sql.DB, database string) ([]model.RoutineInfo, error) {
+func (a *SQLiteAdapter) GetFunctions(db any, database string) ([]model.RoutineInfo, error) {
 	return []model.RoutineInfo{}, nil
 }
 
 // GetIndexes 获取索引列表
-func (a *SQLiteAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
+func (a *SQLiteAdapter) GetIndexes(db any, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)
 	if err != nil {
 		return nil, err
@@ -247,10 +251,11 @@ func (a *SQLiteAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.
 }
 
 // Execute 执行非查询 SQL
-func (a *SQLiteAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error) {
+func (a *SQLiteAdapter) Execute(db any, query string, args ...interface{}) (*model.ExecuteResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
-	result, err := db.Exec(query, args...)
+	result, err := dbSQL.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +270,8 @@ func (a *SQLiteAdapter) Execute(db *sql.DB, query string, args ...interface{}) (
 }
 
 // Query 执行查询
-func (a *SQLiteAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+func (a *SQLiteAdapter) Query(db any, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
 	trimQuery := strings.TrimSpace(strings.ToUpper(query))
@@ -275,7 +281,7 @@ func (a *SQLiteAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions
 		strings.HasPrefix(trimQuery, "WITH")
 
 	if !isQuery {
-		result, err := db.Exec(query)
+		result, err := dbSQL.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -287,7 +293,7 @@ func (a *SQLiteAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions
 		}, nil
 	}
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +340,8 @@ func (a *SQLiteAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions
 }
 
 // Insert 插入数据
-func (a *SQLiteAdapter) Insert(db *sql.DB, database, table string, data map[string]interface{}) error {
+func (a *SQLiteAdapter) Insert(db any, database, table string, data map[string]interface{}) error {
+	dbSQL := db.(*sql.DB)
 	columns := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]interface{}, 0, len(data))
@@ -345,17 +352,18 @@ func (a *SQLiteAdapter) Insert(db *sql.DB, database, table string, data map[stri
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
+	insertSql := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
 		table,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(insertSql, values...)
 	return err
 }
 
 // Update 更新数据
-func (a *SQLiteAdapter) Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error {
+func (a *SQLiteAdapter) Update(db any, database, table string, data map[string]interface{}, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("更新操作必须指定 WHERE 条件")
 	}
@@ -368,31 +376,33 @@ func (a *SQLiteAdapter) Update(db *sql.DB, database, table string, data map[stri
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf("UPDATE `%s` SET %s WHERE %s",
+	updateSql := fmt.Sprintf("UPDATE `%s` SET %s WHERE %s",
 		table,
 		strings.Join(sets, ", "),
 		where)
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(updateSql, values...)
 	return err
 }
 
 // Delete 删除数据
-func (a *SQLiteAdapter) Delete(db *sql.DB, database, table, where string) error {
+func (a *SQLiteAdapter) Delete(db any, database, table, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("删除操作必须指定 WHERE 条件")
 	}
 
-	query := fmt.Sprintf("DELETE FROM `%s` WHERE %s", table, where)
-	_, err := db.Exec(query)
+	deleteSql := fmt.Sprintf("DELETE FROM `%s` WHERE %s", table, where)
+	_, err := dbSQL.Exec(deleteSql)
 	return err
 }
 
 // ExportToCSV 导出为 CSV
-func (a *SQLiteAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+func (a *SQLiteAdapter) ExportToCSV(db any, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewCSVExporter(opts)
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return err
 	}
@@ -438,12 +448,13 @@ func (a *SQLiteAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, quer
 }
 
 // ExportToSQL 导出为 SQL
-func (a *SQLiteAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+func (a *SQLiteAdapter) ExportToSQL(db any, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewSQLExporter(opts, model.DatabaseSQLite)
 
 	// 如果提供了自定义查询，则按查询导出
 	if opts.Query != "" {
-		rows, err := db.Query(opts.Query)
+		rows, err := dbSQL.Query(opts.Query)
 		if err != nil {
 			return err
 		}
@@ -507,11 +518,11 @@ func (a *SQLiteAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database strin
 
 		// 导出数据
 		if !opts.StructureOnly {
-			query := fmt.Sprintf("SELECT * FROM `%s`", table)
+			querySQL := fmt.Sprintf("SELECT * FROM `%s`", table)
 			if opts.MaxRows > 0 {
-				query = fmt.Sprintf("%s LIMIT %d", query, opts.MaxRows)
+				querySQL = fmt.Sprintf("%s LIMIT %d", querySQL, opts.MaxRows)
 			}
-			rows, err := db.Query(query)
+			rows, err := dbSQL.Query(querySQL)
 			if err != nil {
 				return err
 			}
@@ -565,10 +576,11 @@ func (a *SQLiteAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database strin
 }
 
 // GetCreateTableSQL 获取建表语句
-func (a *SQLiteAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (string, error) {
+func (a *SQLiteAdapter) GetCreateTableSQL(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var createSQL string
 	query := fmt.Sprintf("SELECT sql FROM sqlite_master WHERE type='table' AND name='%s'", table)
-	row := db.QueryRow(query)
+	row := dbSQL.QueryRow(query)
 
 	if err := row.Scan(&createSQL); err != nil {
 		return "", err
@@ -578,7 +590,7 @@ func (a *SQLiteAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (s
 }
 
 // AlterTable 修改表结构
-func (a *SQLiteAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) error {
+func (a *SQLiteAdapter) AlterTable(db any, request *model.AlterTableRequest) error {
 	if len(request.Actions) == 0 {
 		return fmt.Errorf("no actions specified")
 	}
@@ -614,23 +626,25 @@ func (a *SQLiteAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest)
 }
 
 // addColumn 添加列
-func (a *SQLiteAdapter) addColumn(db *sql.DB, table string, col *model.ColumnDef) error {
+func (a *SQLiteAdapter) addColumn(db any, table string, col *model.ColumnDef) error {
+	dbSQL := db.(*sql.DB)
 	if col == nil {
 		return fmt.Errorf("column definition is required")
 	}
 
-	sql := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s",
+	addColumnSql := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s",
 		table, col.Name, a.buildColumnType(col))
 
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(addColumnSql)
 	return err
 }
 
 // renameColumn 重命名列
-func (a *SQLiteAdapter) renameColumn(db *sql.DB, table, oldName, newName string) error {
-	sql := fmt.Sprintf("ALTER TABLE `%s` RENAME COLUMN `%s` TO `%s`",
+func (a *SQLiteAdapter) renameColumn(db any, table, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
+	renameSql := fmt.Sprintf("ALTER TABLE `%s` RENAME COLUMN `%s` TO `%s`",
 		table, oldName, newName)
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(renameSql)
 	return err
 }
 
@@ -676,7 +690,8 @@ func (a *SQLiteAdapter) buildColumnType(col *model.ColumnDef) string {
 }
 
 // addIndex 添加索引
-func (a *SQLiteAdapter) addIndex(db *sql.DB, table string, idx *model.IndexDef) error {
+func (a *SQLiteAdapter) addIndex(db any, table string, idx *model.IndexDef) error {
+	dbSQL := db.(*sql.DB)
 	if idx == nil {
 		return fmt.Errorf("index definition is required")
 	}
@@ -690,38 +705,41 @@ func (a *SQLiteAdapter) addIndex(db *sql.DB, table string, idx *model.IndexDef) 
 		columns[i] = fmt.Sprintf("`%s`", col)
 	}
 
-	var sql string
+	var indexSql string
 	if idx.Unique {
-		sql = fmt.Sprintf("CREATE UNIQUE INDEX `%s` ON `%s` (%s)",
+		indexSql = fmt.Sprintf("CREATE UNIQUE INDEX `%s` ON `%s` (%s)",
 			idx.Name, table, strings.Join(columns, ", "))
 	} else {
-		sql = fmt.Sprintf("CREATE INDEX `%s` ON `%s` (%s)",
+		indexSql = fmt.Sprintf("CREATE INDEX `%s` ON `%s` (%s)",
 			idx.Name, table, strings.Join(columns, ", "))
 	}
 
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(indexSql)
 	return err
 }
 
 // dropIndex 删除索引
-func (a *SQLiteAdapter) dropIndex(db *sql.DB, indexName string) error {
-	sql := fmt.Sprintf("DROP INDEX `%s`", indexName)
-	_, err := db.Exec(sql)
+func (a *SQLiteAdapter) dropIndex(db any, indexName string) error {
+	dbSQL := db.(*sql.DB)
+	dropSql := fmt.Sprintf("DROP INDEX `%s`", indexName)
+	_, err := dbSQL.Exec(dropSql)
 	return err
 }
 
 // RenameTable 重命名表
-func (a *SQLiteAdapter) RenameTable(db *sql.DB, database, oldName, newName string) error {
-	sql := fmt.Sprintf("ALTER TABLE `%s` RENAME TO `%s`", oldName, newName)
-	_, err := db.Exec(sql)
+func (a *SQLiteAdapter) RenameTable(db any, database, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
+	renameSql := fmt.Sprintf("ALTER TABLE `%s` RENAME TO `%s`", oldName, newName)
+	_, err := dbSQL.Exec(renameSql)
 	return err
 }
 
 // rebuildTable 重建表（用于不支持的 ALTER 操作）
 // 注意：这是一个复杂操作，需要谨慎使用
-func (a *SQLiteAdapter) rebuildTable(db *sql.DB, table string, newSchema *model.TableSchema) error {
+func (a *SQLiteAdapter) rebuildTable(db any, table string, newSchema *model.TableSchema) error {
+	dbSQL := db.(*sql.DB)
 	// 1. 开启事务
-	tx, err := db.Begin()
+	tx, err := dbSQL.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}

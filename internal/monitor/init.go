@@ -16,6 +16,7 @@ var dbTypeConfigFile = map[string]string{
 	"postgresql": "pg.yaml",
 	"dm":         "dm.yaml",
 	"kingbase":   "kingbase.yaml",
+	"mongodb":    "mongodb.yaml",
 }
 
 // metricsConfigsCache 缓存已加载的指标配置

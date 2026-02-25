@@ -2,11 +2,13 @@ package monitor
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"dbm/internal/adapter"
+	"dbm/internal/model"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -70,71 +72,57 @@ func GetMetricType(metricName string, metricsType map[string]string) prometheus.
 	return valueType
 }
 
-// QueryAndParse 执行 SQL 查询并解析结果
+// QueryAndParse 执行查询并解析结果
 // ctx: 上下文
+// adp: 数据库适配器
 // db: 数据库连接
 // parseFunc: 每行的解析函数
-// sql: SQL 语句
-func QueryAndParse(ctx context.Context, db *sql.DB, parseFunc func(map[string]string) error, sql string) error {
-	rows, err := db.QueryContext(ctx, sql)
+// query: 查询语句
+// config: 采集器配置
+func QueryAndParse(ctx context.Context, adp adapter.DatabaseAdapter, db any, parseFunc func(map[string]string) error, query string, config ScraperConfig) error {
+	opts := &model.QueryOptions{
+		Database: config.Labels["database"], // 从标签或配置中获取？
+	}
+	// 如果标签里没有，尝试从 connection_config 获取？
+	// 实际上 DefaultScraper 的 Scrape 方法会传入 ScraperConfig
+
+	result, err := adp.Query(db, query, opts)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 
-	cols, err := rows.Columns()
-	if err != nil {
-		return fmt.Errorf("get columns failed: %w", err)
-	}
-
-	for rows.Next() {
-		// 创建列值和列指针的切片
-		columns := make([]interface{}, len(cols))
-		columnPointers := make([]interface{}, len(cols))
-		for i := range columns {
-			columnPointers[i] = &columns[i]
-		}
-
-		// 扫描行数据
-		if err := rows.Scan(columnPointers...); err != nil {
-			return fmt.Errorf("scan row failed: %w", err)
-		}
-
-		// 将行数据转换为 map
+	for _, row := range result.Rows {
+		// 将 map[string]interface{} 转换为 map[string]string
 		rowMap := make(map[string]string)
-		for i, colName := range cols {
-			val := columnPointers[i].(*interface{})
-			detected := *val
+		for k, v := range row {
+			kLower := strings.ToLower(k)
+			if v == nil {
+				rowMap[kLower] = ""
+				continue
+			}
 
-			// 转换为字符串
-			colNameLower := strings.ToLower(colName)
-			switch v := detected.(type) {
-			case int32:
-				rowMap[colNameLower] = strconv.Itoa(int(v))
-			case int64:
-				rowMap[colNameLower] = strconv.Itoa(int(v))
-			case uint64:
-				rowMap[colNameLower] = strconv.FormatUint(v, 10)
-			case float64:
-				rowMap[colNameLower] = strconv.FormatFloat(v, 'f', -1, 64)
+			switch val := v.(type) {
 			case string:
-				rowMap[colNameLower] = v
+				rowMap[kLower] = val
+			case int32:
+				rowMap[kLower] = strconv.Itoa(int(val))
+			case int64:
+				rowMap[kLower] = strconv.FormatInt(val, 10)
+			case float64:
+				rowMap[kLower] = strconv.FormatFloat(val, 'f', -1, 64)
 			case time.Time:
-				rowMap[colNameLower] = v.Format("2006-01-02 15:04:05")
+				rowMap[kLower] = val.Format("2006-01-02 15:04:05")
 			case []byte:
-				rowMap[colNameLower] = string(v)
-			case nil:
-				rowMap[colNameLower] = ""
+				rowMap[kLower] = string(val)
 			default:
-				rowMap[colNameLower] = fmt.Sprintf("%v", v)
+				rowMap[kLower] = fmt.Sprintf("%v", val)
 			}
 		}
 
-		// 调用解析函数处理该行
 		if err := parseFunc(rowMap); err != nil {
 			return fmt.Errorf("parse row failed: %w", err)
 		}
 	}
 
-	return rows.Err()
+	return nil
 }

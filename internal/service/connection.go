@@ -1,7 +1,6 @@
 package service
 
 import (
-	"database/sql"
 	"dbm/internal/adapter"
 	"dbm/internal/connection"
 	"dbm/internal/model"
@@ -22,7 +21,7 @@ func NewConnectionService(connManager *connection.Manager, factory *adapter.Fact
 }
 
 // GetDB 获取数据库连接（每次创建新连接）
-func (s *ConnectionService) GetDB(connectionID string, database string) (*sql.DB, *model.ConnectionConfig, error) {
+func (s *ConnectionService) GetDB(connectionID string, database string) (any, *model.ConnectionConfig, error) {
 	// 获取配置
 	config, err := s.connManager.GetConfig(connectionID)
 	if err != nil {
@@ -58,7 +57,7 @@ func (s *ConnectionService) GetDB(connectionID string, database string) (*sql.DB
 }
 
 // GetDBCached 获取缓存的数据库连接
-func (s *ConnectionService) GetDBCached(connectionID string, database string) (*sql.DB, *model.ConnectionConfig, error) {
+func (s *ConnectionService) GetDBCached(connectionID string, database string) (any, *model.ConnectionConfig, error) {
 	// 如果是主数据库连接，尝试从缓存获取
 	if database == "" {
 		if db, config, err := s.connManager.GetConnection(connectionID); err == nil && db != nil {

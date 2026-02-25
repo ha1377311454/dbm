@@ -33,6 +33,8 @@ func (f *Factory) CreateAdapter(dbType model.DatabaseType) (DatabaseAdapter, err
 		return NewKingBaseAdapter(), nil
 	case model.DatabaseDM:
 		return NewDMAdapter(), nil
+	case model.DatabaseMongoDB:
+		return NewMongoDBAdapter(), nil
 	default:
 		return nil, fmt.Errorf("不支持的数据库类型: %s", dbType)
 	}
@@ -47,6 +49,7 @@ func (f *Factory) SupportedTypes() []model.DatabaseType {
 		model.DatabaseClickHouse,
 		model.DatabaseKingBase,
 		model.DatabaseDM,
+		model.DatabaseMongoDB,
 	}
 }
 

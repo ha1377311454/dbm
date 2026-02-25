@@ -25,7 +25,7 @@ func NewKingBaseAdapter() *KingBaseAdapter {
 }
 
 // Connect 连接 KingBase 数据库
-func (a *KingBaseAdapter) Connect(config *model.ConnectionConfig) (*sql.DB, error) {
+func (a *KingBaseAdapter) Connect(config *model.ConnectionConfig) (any, error) {
 	dsn := a.buildDSN(config)
 	db, err := sql.Open("kingbase", dsn)
 	if err != nil {
@@ -66,7 +66,8 @@ func (a *KingBaseAdapter) buildDSN(config *model.ConnectionConfig) string {
 }
 
 // GetDatabases 获取数据库列表
-func (a *KingBaseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
+func (a *KingBaseAdapter) GetDatabases(db any) ([]string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT datname
 		FROM pg_database
@@ -75,7 +76,7 @@ func (a *KingBaseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 		ORDER BY datname
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,8 @@ func (a *KingBaseAdapter) GetDatabases(db *sql.DB) ([]string, error) {
 }
 
 // GetSchemas 获取 schema 列表
-func (a *KingBaseAdapter) GetSchemas(db *sql.DB, database string) ([]string, error) {
+func (a *KingBaseAdapter) GetSchemas(db any, database string) ([]string, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT schema_name
 		FROM information_schema.schemata
@@ -102,7 +104,7 @@ func (a *KingBaseAdapter) GetSchemas(db *sql.DB, database string) ([]string, err
 		ORDER BY schema_name
 	`
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -121,12 +123,13 @@ func (a *KingBaseAdapter) GetSchemas(db *sql.DB, database string) ([]string, err
 }
 
 // GetTables 获取表列表
-func (a *KingBaseAdapter) GetTables(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *KingBaseAdapter) GetTables(db any, database string) ([]model.TableInfo, error) {
 	return a.GetTablesWithSchema(db, database, "public")
 }
 
 // GetTablesWithSchema 获取指定 schema 下的表列表
-func (a *KingBaseAdapter) GetTablesWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error) {
+func (a *KingBaseAdapter) GetTablesWithSchema(db any, database, schema string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			t.table_name,
@@ -139,7 +142,7 @@ func (a *KingBaseAdapter) GetTablesWithSchema(db *sql.DB, database, schema strin
 		ORDER BY t.table_name
 	`
 
-	rows, err := db.Query(query, schema)
+	rows, err := dbSQL.Query(query, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -161,12 +164,13 @@ func (a *KingBaseAdapter) GetTablesWithSchema(db *sql.DB, database, schema strin
 }
 
 // GetTableSchema 获取表结构
-func (a *KingBaseAdapter) GetTableSchema(db *sql.DB, database, table string) (*model.TableSchema, error) {
+func (a *KingBaseAdapter) GetTableSchema(db any, database, table string) (*model.TableSchema, error) {
 	return a.GetTableSchemaWithSchema(db, database, "public", table)
 }
 
 // GetTableSchemaWithSchema 获取指定 schema 下表结构
-func (a *KingBaseAdapter) GetTableSchemaWithSchema(db *sql.DB, database, schema, table string) (*model.TableSchema, error) {
+func (a *KingBaseAdapter) GetTableSchemaWithSchema(db any, database, schema, table string) (*model.TableSchema, error) {
+	dbSQL := db.(*sql.DB)
 	tableSchema := &model.TableSchema{
 		Database: database,
 		Table:    table,
@@ -187,7 +191,7 @@ func (a *KingBaseAdapter) GetTableSchemaWithSchema(db *sql.DB, database, schema,
 		ORDER BY ordinal_position
 	`
 
-	colsRows, err := db.Query(colsQuery, schema, table)
+	colsRows, err := dbSQL.Query(colsQuery, schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +228,7 @@ func (a *KingBaseAdapter) GetTableSchemaWithSchema(db *sql.DB, database, schema,
 		ORDER BY i.indexrelid::regclass, a.attnum
 	`
 
-	idxRows, err := db.Query(idxQuery, schema, table)
+	idxRows, err := dbSQL.Query(idxQuery, schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -256,12 +260,13 @@ func (a *KingBaseAdapter) GetTableSchemaWithSchema(db *sql.DB, database, schema,
 }
 
 // GetViews 获取视图列表
-func (a *KingBaseAdapter) GetViews(db *sql.DB, database string) ([]model.TableInfo, error) {
+func (a *KingBaseAdapter) GetViews(db any, database string) ([]model.TableInfo, error) {
 	return a.GetViewsWithSchema(db, database, "public")
 }
 
 // GetViewsWithSchema 获取指定 schema 下的视图列表
-func (a *KingBaseAdapter) GetViewsWithSchema(db *sql.DB, database, schema string) ([]model.TableInfo, error) {
+func (a *KingBaseAdapter) GetViewsWithSchema(db any, database, schema string) ([]model.TableInfo, error) {
+	dbSQL := db.(*sql.DB)
 	query := `
 		SELECT
 			table_name,
@@ -272,7 +277,7 @@ func (a *KingBaseAdapter) GetViewsWithSchema(db *sql.DB, database, schema string
 		ORDER BY table_name
 	`
 
-	rows, err := db.Query(query, schema)
+	rows, err := dbSQL.Query(query, schema)
 	if err != nil {
 		return nil, err
 	}
@@ -294,12 +299,13 @@ func (a *KingBaseAdapter) GetViewsWithSchema(db *sql.DB, database, schema string
 }
 
 // GetViewDefinition 获取视图定义
-func (a *KingBaseAdapter) GetViewDefinition(db *sql.DB, database, viewName string) (string, error) {
+func (a *KingBaseAdapter) GetViewDefinition(db any, database, viewName string) (string, error) {
 	return a.GetViewDefinitionWithSchema(db, database, "public", viewName)
 }
 
 // GetViewDefinitionWithSchema 获取指定 schema 下的视图定义
-func (a *KingBaseAdapter) GetViewDefinitionWithSchema(db *sql.DB, database, schema, viewName string) (string, error) {
+func (a *KingBaseAdapter) GetViewDefinitionWithSchema(db any, database, schema, viewName string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := `
 		SELECT pg_get_viewdef(c.oid, true)
@@ -308,7 +314,7 @@ func (a *KingBaseAdapter) GetViewDefinitionWithSchema(db *sql.DB, database, sche
 		WHERE c.relname = $1 AND n.nspname = $2
 	`
 
-	row := db.QueryRow(query, viewName, schema)
+	row := dbSQL.QueryRow(query, viewName, schema)
 	if err := row.Scan(&definition); err != nil {
 		return "", err
 	}
@@ -317,12 +323,13 @@ func (a *KingBaseAdapter) GetViewDefinitionWithSchema(db *sql.DB, database, sche
 }
 
 // GetRoutineDefinition 获取存储过程或函数定义
-func (a *KingBaseAdapter) GetRoutineDefinition(db *sql.DB, database, routineName, routineType string) (string, error) {
+func (a *KingBaseAdapter) GetRoutineDefinition(db any, database, routineName, routineType string) (string, error) {
 	return a.GetRoutineDefinitionWithSchema(db, database, "public", routineName, routineType)
 }
 
 // GetRoutineDefinitionWithSchema 获取指定 schema 下的存储过程或函数定义
-func (a *KingBaseAdapter) GetRoutineDefinitionWithSchema(db *sql.DB, database, schema, routineName, routineType string) (string, error) {
+func (a *KingBaseAdapter) GetRoutineDefinitionWithSchema(db any, database, schema, routineName, routineType string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var definition string
 	query := `
 		SELECT pg_get_functiondef(p.oid)
@@ -332,7 +339,7 @@ func (a *KingBaseAdapter) GetRoutineDefinitionWithSchema(db *sql.DB, database, s
 		LIMIT 1
 	`
 
-	row := db.QueryRow(query, routineName, schema)
+	row := dbSQL.QueryRow(query, routineName, schema)
 	if err := row.Scan(&definition); err != nil {
 		return "", err
 	}
@@ -341,7 +348,7 @@ func (a *KingBaseAdapter) GetRoutineDefinitionWithSchema(db *sql.DB, database, s
 }
 
 // GetIndexes 获取索引列表
-func (a *KingBaseAdapter) GetIndexes(db *sql.DB, database, table string) ([]model.IndexInfo, error) {
+func (a *KingBaseAdapter) GetIndexes(db any, database, table string) ([]model.IndexInfo, error) {
 	schema, err := a.GetTableSchema(db, database, table)
 	if err != nil {
 		return nil, err
@@ -350,10 +357,11 @@ func (a *KingBaseAdapter) GetIndexes(db *sql.DB, database, table string) ([]mode
 }
 
 // Execute 执行非查询 SQL
-func (a *KingBaseAdapter) Execute(db *sql.DB, query string, args ...interface{}) (*model.ExecuteResult, error) {
+func (a *KingBaseAdapter) Execute(db any, query string, args ...interface{}) (*model.ExecuteResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
-	result, err := db.Exec(query, args...)
+	result, err := dbSQL.Exec(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +376,8 @@ func (a *KingBaseAdapter) Execute(db *sql.DB, query string, args ...interface{})
 }
 
 // Query 执行查询
-func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+func (a *KingBaseAdapter) Query(db any, query string, opts *model.QueryOptions) (*model.QueryResult, error) {
+	dbSQL := db.(*sql.DB)
 	start := time.Now()
 
 	trimQuery := strings.TrimSpace(strings.ToUpper(query))
@@ -379,7 +388,7 @@ func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptio
 		strings.HasPrefix(trimQuery, "WITH")
 
 	if !isQuery {
-		result, err := db.Exec(query)
+		result, err := dbSQL.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -391,7 +400,7 @@ func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptio
 		}, nil
 	}
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +447,8 @@ func (a *KingBaseAdapter) Query(db *sql.DB, query string, opts *model.QueryOptio
 }
 
 // Insert 插入数据
-func (a *KingBaseAdapter) Insert(db *sql.DB, database, table string, data map[string]interface{}) error {
+func (a *KingBaseAdapter) Insert(db any, database, table string, data map[string]interface{}) error {
+	dbSQL := db.(*sql.DB)
 	cols := make([]string, 0, len(data))
 	placeholders := make([]string, 0, len(data))
 	values := make([]interface{}, 0, len(data))
@@ -451,17 +461,18 @@ func (a *KingBaseAdapter) Insert(db *sql.DB, database, table string, data map[st
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES (%s)`,
+	insertSql := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES (%s)`,
 		table,
 		strings.Join(cols, ", "),
 		strings.Join(placeholders, ", "))
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(insertSql, values...)
 	return err
 }
 
 // Update 更新数据
-func (a *KingBaseAdapter) Update(db *sql.DB, database, table string, data map[string]interface{}, where string) error {
+func (a *KingBaseAdapter) Update(db any, database, table string, data map[string]interface{}, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("更新操作必须指定 WHERE 条件")
 	}
@@ -476,31 +487,33 @@ func (a *KingBaseAdapter) Update(db *sql.DB, database, table string, data map[st
 		values = append(values, val)
 	}
 
-	query := fmt.Sprintf(`UPDATE "%s" SET %s WHERE %s`,
+	updateSql := fmt.Sprintf(`UPDATE "%s" SET %s WHERE %s`,
 		table,
 		strings.Join(sets, ", "),
 		where)
 
-	_, err := db.Exec(query, values...)
+	_, err := dbSQL.Exec(updateSql, values...)
 	return err
 }
 
 // Delete 删除数据
-func (a *KingBaseAdapter) Delete(db *sql.DB, database, table, where string) error {
+func (a *KingBaseAdapter) Delete(db any, database, table, where string) error {
+	dbSQL := db.(*sql.DB)
 	if where == "" {
 		return fmt.Errorf("删除操作必须指定 WHERE 条件")
 	}
 
-	query := fmt.Sprintf(`DELETE FROM "%s" WHERE %s`, table, where)
-	_, err := db.Exec(query)
+	deleteSql := fmt.Sprintf(`DELETE FROM "%s" WHERE %s`, table, where)
+	_, err := dbSQL.Exec(deleteSql)
 	return err
 }
 
 // ExportToCSV 导出为 CSV
-func (a *KingBaseAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+func (a *KingBaseAdapter) ExportToCSV(db any, writer io.Writer, database, query string, opts *model.CSVOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewCSVExporter(opts)
 
-	rows, err := db.Query(query)
+	rows, err := dbSQL.Query(query)
 	if err != nil {
 		return err
 	}
@@ -541,12 +554,13 @@ func (a *KingBaseAdapter) ExportToCSV(db *sql.DB, writer io.Writer, database, qu
 }
 
 // ExportToSQL 导出为 SQL
-func (a *KingBaseAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+func (a *KingBaseAdapter) ExportToSQL(db any, writer io.Writer, database string, tables []string, opts *model.SQLOptions) error {
+	dbSQL := db.(*sql.DB)
 	exporter := export.NewSQLExporter(opts, model.DatabaseKingBase)
 
 	// 如果提供了自定义查询，则按查询导出
 	if opts.Query != "" {
-		rows, err := db.Query(opts.Query)
+		rows, err := dbSQL.Query(opts.Query)
 		if err != nil {
 			return err
 		}
@@ -605,11 +619,11 @@ func (a *KingBaseAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database str
 
 		// 导出数据
 		if !opts.StructureOnly {
-			query := fmt.Sprintf(`SELECT * FROM "%s"`, table)
+			querySQL := fmt.Sprintf(`SELECT * FROM "%s"`, table)
 			if opts.MaxRows > 0 {
-				query = fmt.Sprintf("%s LIMIT %d", query, opts.MaxRows)
+				querySQL = fmt.Sprintf("%s LIMIT %d", querySQL, opts.MaxRows)
 			}
-			rows, err := db.Query(query)
+			rows, err := dbSQL.Query(querySQL)
 			if err != nil {
 				return err
 			}
@@ -658,7 +672,8 @@ func (a *KingBaseAdapter) ExportToSQL(db *sql.DB, writer io.Writer, database str
 }
 
 // GetCreateTableSQL 获取建表语句
-func (a *KingBaseAdapter) GetCreateTableSQL(db *sql.DB, database, table string) (string, error) {
+func (a *KingBaseAdapter) GetCreateTableSQL(db any, database, table string) (string, error) {
+	dbSQL := db.(*sql.DB)
 	var createSQL string
 	query := `
 		SELECT
@@ -678,7 +693,7 @@ func (a *KingBaseAdapter) GetCreateTableSQL(db *sql.DB, database, table string) 
 		GROUP BY c.relname
 	`
 
-	row := db.QueryRow(query, table)
+	row := dbSQL.QueryRow(query, table)
 	if err := row.Scan(&createSQL); err != nil {
 		return "", err
 	}
@@ -687,21 +702,22 @@ func (a *KingBaseAdapter) GetCreateTableSQL(db *sql.DB, database, table string) 
 }
 
 // AlterTable 修改表结构
-func (a *KingBaseAdapter) AlterTable(db *sql.DB, request *model.AlterTableRequest) error {
+func (a *KingBaseAdapter) AlterTable(db any, request *model.AlterTableRequest) error {
+	dbSQL := db.(*sql.DB)
 	if len(request.Actions) == 0 {
 		return fmt.Errorf("no actions specified")
 	}
 
 	// KingBase 需要分别执行每个 ALTER 语句
 	for _, action := range request.Actions {
-		var sql string
+		var alterSql string
 		var err error
 
 		switch action.Type {
 		case model.AlterActionAddColumn:
-			sql, err = a.buildAddColumnSQL(request.Database, request.Table, action.Column)
+			alterSql, err = a.buildAddColumnSQL(request.Database, request.Table, action.Column)
 		case model.AlterActionDropColumn:
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN "%s"`,
+			alterSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN "%s"`,
 				request.Database, request.Table, action.OldName)
 		case model.AlterActionModifyColumn:
 			// KingBase 需要多个语句来修改列
@@ -710,12 +726,12 @@ func (a *KingBaseAdapter) AlterTable(db *sql.DB, request *model.AlterTableReques
 			}
 			continue
 		case model.AlterActionRenameColumn:
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME COLUMN "%s" TO "%s"`,
+			alterSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME COLUMN "%s" TO "%s"`,
 				request.Database, request.Table, action.OldName, action.NewName)
 		case model.AlterActionAddIndex:
-			sql, err = a.buildAddIndexSQL(request.Database, request.Table, action.Index)
+			alterSql, err = a.buildAddIndexSQL(request.Database, request.Table, action.Index)
 		case model.AlterActionDropIndex:
-			sql = fmt.Sprintf(`DROP INDEX "%s"."%s"`, request.Database, action.OldName)
+			alterSql = fmt.Sprintf(`DROP INDEX "%s"."%s"`, request.Database, action.OldName)
 		default:
 			return fmt.Errorf("unsupported action type: %s", action.Type)
 		}
@@ -724,8 +740,8 @@ func (a *KingBaseAdapter) AlterTable(db *sql.DB, request *model.AlterTableReques
 			return fmt.Errorf("build SQL failed: %w", err)
 		}
 
-		if sql != "" {
-			if _, err := db.Exec(sql); err != nil {
+		if alterSql != "" {
+			if _, err := dbSQL.Exec(alterSql); err != nil {
 				return fmt.Errorf("execute SQL failed: %w", err)
 			}
 		}
@@ -747,40 +763,41 @@ func (a *KingBaseAdapter) buildAddColumnSQL(database, table string, col *model.C
 }
 
 // modifyColumn 修改列（KingBase 需要多个语句）
-func (a *KingBaseAdapter) modifyColumn(db *sql.DB, database, table string, col *model.ColumnDef) error {
+func (a *KingBaseAdapter) modifyColumn(db any, database, table string, col *model.ColumnDef) error {
+	dbSQL := db.(*sql.DB)
 	if col == nil {
 		return fmt.Errorf("column definition is required")
 	}
 
 	// 修改类型
-	sql := fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" TYPE %s`,
+	alterTypeSql := fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" TYPE %s`,
 		database, table, col.Name, a.getBaseType(col))
-	if _, err := db.Exec(sql); err != nil {
+	if _, err := dbSQL.Exec(alterTypeSql); err != nil {
 		return fmt.Errorf("alter column type failed: %w", err)
 	}
 
 	// 修改可空性
 	if col.Nullable {
-		sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" DROP NOT NULL`,
+		alterTypeSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" DROP NOT NULL`,
 			database, table, col.Name)
 	} else {
-		sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" SET NOT NULL`,
+		alterTypeSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" SET NOT NULL`,
 			database, table, col.Name)
 	}
-	if _, err := db.Exec(sql); err != nil {
+	if _, err := dbSQL.Exec(alterTypeSql); err != nil {
 		return fmt.Errorf("alter column nullable failed: %w", err)
 	}
 
 	// 修改默认值
 	if col.DefaultValue != "" {
 		if strings.ToUpper(col.DefaultValue) == "NULL" {
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" DROP DEFAULT`,
+			alterTypeSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" DROP DEFAULT`,
 				database, table, col.Name)
 		} else {
-			sql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" SET DEFAULT %s`,
+			alterTypeSql = fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN "%s" SET DEFAULT %s`,
 				database, table, col.Name, a.formatDefaultValue(col.DefaultValue))
 		}
-		if _, err := db.Exec(sql); err != nil {
+		if _, err := dbSQL.Exec(alterTypeSql); err != nil {
 			return fmt.Errorf("alter column default failed: %w", err)
 		}
 	}
@@ -875,9 +892,10 @@ func (a *KingBaseAdapter) buildAddIndexSQL(database, table string, idx *model.In
 }
 
 // RenameTable 重命名表
-func (a *KingBaseAdapter) RenameTable(db *sql.DB, database, oldName, newName string) error {
-	sql := fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`,
+func (a *KingBaseAdapter) RenameTable(db any, database, oldName, newName string) error {
+	dbSQL := db.(*sql.DB)
+	renameSql := fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`,
 		database, oldName, newName)
-	_, err := db.Exec(sql)
+	_, err := dbSQL.Exec(renameSql)
 	return err
 }

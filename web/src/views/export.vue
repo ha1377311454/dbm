@@ -102,6 +102,7 @@
                   <el-option label="MSSQL" value="mssql" />
                   <el-option label="ClickHouse" value="clickhouse" />
                   <el-option label="KingBase" value="kingbase" />
+                  <el-option label="MongoDB" value="mongodb" />
                 </el-select>
               </el-form-item>
               <el-form-item label="包含建表语句">
@@ -305,6 +306,12 @@ const typeMappingResult = ref<TypeMappingResult | null>(null)
 const userChoices = ref<Record<string, string>>({})
 const showMappingDetails = ref(false)
 
+const connection = computed(() => 
+  connectionsStore.connections.find(c => c.id === currentConnectionId.value)
+)
+
+const dbType = computed(() => connection.value?.type)
+
 const hasUserChoices = computed(() => {
   return typeMappingResult.value ? Object.keys(typeMappingResult.value.requiresUser).length > 0 : false
 })
@@ -486,9 +493,14 @@ async function handlePreview() {
     const sql = exportConfig.mode === 'query' ? queryEditor?.getValue() : ''
 
     if (exportConfig.format === 'csv') {
-      const query = exportConfig.mode === 'query' ? sql : `SELECT * FROM ${exportConfig.selectedTables[0]} LIMIT 10`
+      let query = ''
+      if (exportConfig.mode === 'query') {
+        query = sql as string
+      } else {
+        query = dbType.value === 'mongodb' ? exportConfig.selectedTables[0] : `SELECT * FROM ${exportConfig.selectedTables[0]} LIMIT 10`
+      }
       res = await api.exportCSV(currentConnectionId.value, {
-        query: query as string,
+        query: query,
         opts: { ...csvOptions, maxRows: 10 },
         database: currentDatabase.value
       })
@@ -542,7 +554,7 @@ async function handleTypePreview() {
       targetDbType: exportConfig.targetDbType as any
     })
 
-    typeMappingResult.value = result
+    typeMappingResult.value = result.data
     userChoices.value = {}
     showMappingDetails.value = false
     typeMappingDialogVisible.value = true
@@ -584,9 +596,14 @@ async function handleExport() {
     const sql = exportConfig.mode === 'query' ? queryEditor?.getValue() : ''
 
     if (exportConfig.format === 'csv') {
-      const query = exportConfig.mode === 'query' ? sql : `SELECT * FROM ${exportConfig.selectedTables[0]}`
+      let query = ''
+      if (exportConfig.mode === 'query') {
+        query = sql as string
+      } else {
+        query = dbType.value === 'mongodb' ? exportConfig.selectedTables[0] : `SELECT * FROM ${exportConfig.selectedTables[0]}`
+      }
       res = await api.exportCSV(currentConnectionId.value, {
-        query: query as string,
+        query: query,
         opts: csvOptions,
         database: currentDatabase.value
       })
@@ -603,7 +620,7 @@ async function handleExport() {
     }
 
     // Trigger download
-    const blob = new Blob([res], { type: 'application/octet-stream' })
+    const blob = res instanceof Blob ? res : new Blob([res as any], { type: 'application/octet-stream' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
