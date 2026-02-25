@@ -179,7 +179,7 @@ dbm/
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/dbm.git
+git clone https://github.com/ha1377311454/dbm.git
 cd dbm
 
 # 安装依赖
