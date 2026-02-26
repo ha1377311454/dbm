@@ -160,6 +160,7 @@
             <el-option label="KingBase" value="kingbase" />
             <el-option label="达梦数据库" value="dm" />
             <el-option label="MongoDB" value="mongodb" />
+            <el-option label="Oracle" value="oracle" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="formData.type === 'clickhouse'" label="协议">
@@ -168,6 +169,12 @@
             <el-option label="HTTP" value="http" />
             <el-option label="HTTPS" value="https" />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="formData.type === 'oracle'" label="连接方式">
+          <el-radio-group v-model="formData.params.connectType">
+            <el-radio label="Service Name" value="service_name" />
+            <el-radio label="SID" value="sid" />
+          </el-radio-group>
         </el-form-item>
         <el-form-item v-if="formData.type !== 'sqlite'" label="主机" prop="host">
           <el-input v-model="formData.host" placeholder="localhost" />
@@ -181,13 +188,13 @@
         <el-form-item v-if="formData.type !== 'sqlite'" label="密码" prop="password">
           <el-input v-model="formData.password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="数据库" prop="database">
+        <el-form-item :label="formData.type === 'oracle' ? (formData.params.connectType === 'sid' ? 'SID' : 'Service Name') : '数据库'" prop="database">
           <el-input
             v-if="formData.type === 'sqlite'"
             v-model="formData.database"
             placeholder="/path/to/database.db"
           />
-          <el-input v-else v-model="formData.database" />
+          <el-input v-else v-model="formData.database" :placeholder="formData.type === 'oracle' ? '请输入 ' + (formData.params.connectType === 'sid' ? 'SID' : 'Service Name') : ''" />
         </el-form-item>
         <el-form-item label="启用监控">
           <el-switch
@@ -762,6 +769,10 @@ function handleDbTypeChange(val: DatabaseType) {
     formData.params.protocol = 'clickhouse'
   } else if (val === 'mongodb') {
     formData.port = 27017
+  } else if (val === 'oracle') {
+    formData.port = 1521
+    if (!formData.params) formData.params = {}
+    formData.params.connectType = 'service_name'
   }
 }
 

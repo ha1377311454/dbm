@@ -260,6 +260,16 @@ async function loadPreview(tableName: string) {
       // For MongoDB, we can just send the collection name
       // The backend will wrap it in a find command
       query = tableName
+    } else if (dbType.value === 'oracle') {
+      query = `SELECT * FROM ${tableName}`
+      if (searchCol.value && searchVal.value) {
+        query += ` WHERE "${searchCol.value}" LIKE '%${searchVal.value}%'`
+      }
+      if (query.includes(' WHERE ')) {
+        query += ' AND ROWNUM <= 100'
+      } else {
+        query += ' WHERE ROWNUM <= 100'
+      }
     } else {
       query = `SELECT * FROM ${tableName}`
       if (searchCol.value && searchVal.value) {
@@ -305,12 +315,13 @@ function handleQuickExport() {
 
 // Data Editing Functions
 function getWhereClause(row: Record<string, any>) {
+  const quote = dbType.value === 'oracle' ? '"' : '`';
   if (primaryKeys.value.length > 0) {
     // Use Primary Key
-    return primaryKeys.value.map(pk => `\`${pk}\` = '${row[pk]}'`).join(' AND ')
+    return primaryKeys.value.map(pk => `${quote}${pk}${quote} = '${row[pk]}'`).join(' AND ')
   } else {
     // Fallback: Use all columns (unsafe but better than nothing)
-    return Object.keys(row).map(key => `\`${key}\` = '${row[key]}'`).join(' AND ')
+    return Object.keys(row).map(key => `${quote}${key}${quote} = '${row[key]}'`).join(' AND ')
   }
 }
 

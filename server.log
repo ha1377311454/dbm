@@ -1,4 +1,22 @@
-2026/02/25 14:49:30 DBM vv1.0.0-dirty 启动中...
-2026/02/25 14:49:30 监听地址: http://0.0.0.0:2048
-2026/02/25 14:49:30 配置目录: /Users/helianthus/.dbm/config.yaml
-2026/02/25 14:49:30 数据目录: /Users/helianthus/.dbm
+2026/02/26 12:52:37 DBM vv1.0.0-8-gf2e716c-dirty 启动中...
+2026/02/26 12:52:37 监听地址: http://0.0.0.0:2048
+2026/02/26 12:52:37 配置目录: /Users/helianthus/.dbm/config.yaml
+2026/02/26 12:52:37 数据目录: /Users/helianthus/.dbm
+2026/02/26 12:53:01 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM AUTOTEST_ADDRESS WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM AUTOTEST_ADDRESS WHERE ROWNUM <= 100
+2026/02/26 12:53:04 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM AUTOTEST_USER WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM AUTOTEST_USER WHERE ROWNUM <= 100
+2026/02/26 13:26:13 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM GO_TEST WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM GO_TEST WHERE ROWNUM <= 100
+2026/02/26 13:26:39 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM LOG_LOGIN WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM LOG_LOGIN WHERE ROWNUM <= 100
+2026/02/26 13:26:48 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM SYS_ROLE WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM SYS_ROLE WHERE ROWNUM <= 100
+2026/02/26 13:26:53 [Oracle] SQL Rewritten:
+  Original: SELECT * FROM SYS_ROLE_DEPT WHERE ROWNUM <= 100;
+  Final:    SELECT * FROM SYS_ROLE_DEPT WHERE ROWNUM <= 100

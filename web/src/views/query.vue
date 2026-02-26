@@ -651,6 +651,9 @@ function handleTableClick(tableName: string) {
       limit: 100
     }
     editor?.setValue(JSON.stringify(template, null, 2))
+  } else if (dbType.value === 'oracle') {
+    const sql = `SELECT * FROM ${tableRef} WHERE ROWNUM <= 100;`
+    editor?.setValue(sql)
   } else {
     const sql = `SELECT * FROM ${tableRef} LIMIT 100;`
     editor?.setValue(sql)

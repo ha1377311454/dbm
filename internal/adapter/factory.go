@@ -25,8 +25,7 @@ func (f *Factory) CreateAdapter(dbType model.DatabaseType) (DatabaseAdapter, err
 	case model.DatabaseMSSQL:
 		return nil, fmt.Errorf("SQL Server 适配器尚未实现")
 	case model.DatabaseOracle:
-		// todo github.com/sijms/go-ora/v2 v2.8.19
-		return nil, fmt.Errorf("Oracle 适配器尚未实现")
+		return NewOracleAdapter(), nil
 	case model.DatabaseClickHouse:
 		return NewClickHouseAdapter(), nil
 	case model.DatabaseKingBase:
@@ -50,6 +49,7 @@ func (f *Factory) SupportedTypes() []model.DatabaseType {
 		model.DatabaseKingBase,
 		model.DatabaseDM,
 		model.DatabaseMongoDB,
+		model.DatabaseOracle,
 	}
 }
 
